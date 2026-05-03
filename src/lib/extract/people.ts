@@ -41,7 +41,10 @@ Rules:
 - If insufficient data, set role:null and keep summary brief and honest.
 - If the person is clearly a bot or automated account, set role: "Bot".`;
 
-export async function extractPerson(input: PersonExtractionInput): Promise<PersonExtractionOutput> {
+export async function extractPerson(
+  input: PersonExtractionInput,
+  apiKey?: string,
+): Promise<PersonExtractionOutput> {
   const channelsBlock = input.topChannels
     .slice(0, 5)
     .map((c) => `  - #${c.name} (${c.count} msgs)${c.purpose ? `: ${c.purpose}` : ""}`)
@@ -70,6 +73,7 @@ export async function extractPerson(input: PersonExtractionInput): Promise<Perso
     userMessage: userMsg,
     maxTokens: 800,
     model: "extract",
+    apiKey,
   });
 
   try {

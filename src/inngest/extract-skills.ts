@@ -7,6 +7,7 @@ import {
 } from "@/lib/db";
 import { fetchMessagesSince, sixMonthsAgoTs, slackUserOrBotClient } from "@/lib/slack";
 import { extractSkillsFromChannel } from "@/lib/extract/skills";
+import { loadWorkspaceApiKey } from "@/lib/extract/llm";
 
 // Extract executable skills (procedures, policies, decisions) from
 // eng/ops/support channels. Runs after backfill categorization, or on demand.
@@ -20,6 +21,8 @@ export const extractSkills = inngest.createFunction(
     const { workspaceId } = event.data as SkillsExtractRequestedData;
     const ws = await step.run("load-ws", () => getWorkspace(workspaceId));
     const { client: slack } = slackUserOrBotClient(ws);
+    // Do not persist the decrypted key in Inngest step state — load fresh each run.
+    const apiKey = await loadWorkspaceApiKey(workspaceId);
 
     const allChannels = await step.run("list-channels", () => listChannels(workspaceId));
 
@@ -47,6 +50,7 @@ export const extractSkills = inngest.createFunction(
           ch.slack_channel_id,
           ch.name,
           messages,
+          apiKey,
         ).catch((e) => {
           logger.warn(`skills LLM failed for ${ch.name}: ${e?.message}`);
           return [];

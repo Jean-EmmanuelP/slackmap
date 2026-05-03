@@ -8,6 +8,19 @@
 
 import { spawn } from "node:child_process";
 import Anthropic from "@anthropic-ai/sdk";
+import { getWorkspaceAnthropicKey } from "@/lib/db";
+import { decrypt } from "@/lib/crypto";
+
+export async function loadWorkspaceApiKey(workspaceId: string): Promise<string | undefined> {
+  try {
+    const enc = await getWorkspaceAnthropicKey(workspaceId);
+    if (!enc) return undefined;
+    const plain = decrypt(enc);
+    return plain.startsWith("sk-ant-") ? plain : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 export type LlmCallOptions = {
   system: string;

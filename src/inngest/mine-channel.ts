@@ -10,6 +10,7 @@ import {
 import { fetchMessagesSince, sixMonthsAgoTs, slackUserOrBotClient } from "@/lib/slack";
 import { extractChannelPurpose } from "@/lib/extract/channel-purpose";
 import { extractAcronymCandidates, llmDefineTerms } from "@/lib/extract/glossary";
+import { loadWorkspaceApiKey } from "@/lib/extract/llm";
 
 function computeMetrics(messages: Array<{ user?: string; ts: string }>) {
   const users = new Set<string>();
@@ -92,15 +93,17 @@ export const mineChannel = inngest.createFunction(
     });
 
     if (messages.length >= 5) {
+      const apiKey = await loadWorkspaceApiKey(workspaceId);
+
       await step.run("extract-purpose", async () => {
-        const purpose = await extractChannelPurpose(ch.name, messages).catch(() => null);
+        const purpose = await extractChannelPurpose(ch.name, messages, apiKey).catch(() => null);
         if (purpose) await updateChannel(channelDbId, { purpose_extracted: purpose });
       });
 
       await step.run("extract-glossary", async () => {
         const candidates = extractAcronymCandidates(messages);
         if (candidates.length === 0) return;
-        const entries = await llmDefineTerms(candidates, ch.slack_channel_id).catch(() => []);
+        const entries = await llmDefineTerms(candidates, ch.slack_channel_id, apiKey).catch(() => []);
         if (entries.length > 0) await upsertGlossary(workspaceId, entries);
       });
     }

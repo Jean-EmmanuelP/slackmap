@@ -10,7 +10,11 @@ sentence (max 25 words, no quotes) describing what the channel is actually used 
 - If too sparse to tell, say "Not enough activity to characterize".
 - Output the sentence and nothing else. No prefix, no markdown.`;
 
-export async function extractChannelPurpose(channelName: string, messages: Msg[]): Promise<string> {
+export async function extractChannelPurpose(
+  channelName: string,
+  messages: Msg[],
+  apiKey?: string,
+): Promise<string> {
   const sample = messages
     .filter((m) => m.text && m.text.length > 0)
     .slice(0, 100)
@@ -25,6 +29,7 @@ export async function extractChannelPurpose(channelName: string, messages: Msg[]
       userMessage: `Channel name: #${channelName}\n\nRecent messages:\n${sample}`,
       maxTokens: 120,
       model: "extract",
+      apiKey,
     })
   ).trim();
 }

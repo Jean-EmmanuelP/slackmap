@@ -54,6 +54,7 @@ Hard rules:
 export async function extractRecommendations(
   channels: Channel[],
   people: Person[],
+  apiKey?: string,
 ): Promise<ExtractedRec[]> {
   if (channels.length === 0) return [];
 
@@ -88,6 +89,7 @@ export async function extractRecommendations(
     userMessage: userMsg,
     maxTokens: 4096,
     model: "extract",
+    apiKey,
   });
 
   try {

@@ -17,6 +17,8 @@ export type Workspace = {
   backfill_total: number;
   backfill_error: string | null;
   last_event_received_at: string | null;
+  encrypted_anthropic_api_key: string | null;
+  anthropic_key_set_at: string | null;
 };
 
 export type Channel = {
@@ -167,6 +169,31 @@ export async function bumpBackfillProgress(workspaceId: string): Promise<void> {
     const next = ((data?.backfill_progress as number) ?? 0) + 1;
     await db().from("workspaces").update({ backfill_progress: next }).eq("id", workspaceId);
   });
+}
+
+export async function setWorkspaceAnthropicKey(
+  workspaceId: string,
+  encryptedKey: string | null,
+): Promise<void> {
+  const { error } = await db()
+    .from("workspaces")
+    .update({
+      encrypted_anthropic_api_key: encryptedKey,
+      anthropic_key_set_at: encryptedKey ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workspaceId);
+  if (error) throw error;
+}
+
+export async function getWorkspaceAnthropicKey(workspaceId: string): Promise<string | null> {
+  const { data, error } = await db()
+    .from("workspaces")
+    .select("encrypted_anthropic_api_key")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.encrypted_anthropic_api_key as string | null) ?? null;
 }
 
 export async function bumpLastEventReceivedAt(workspaceId: string): Promise<void> {

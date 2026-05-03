@@ -9,6 +9,7 @@ import { fetchMessagesSince, sixMonthsAgoTs, slackUserOrBotClient } from "@/lib/
 import { extractPerson } from "@/lib/extract/people";
 import { extractSkillsForPerson } from "@/lib/extract/skills";
 import { upsertSkill } from "@/lib/db";
+import { loadWorkspaceApiKey } from "@/lib/extract/llm";
 
 // Extract /people profiles for every active user across mined channels.
 // Triggered explicitly (button on /people) or after enough channels are mined.
@@ -22,6 +23,7 @@ export const extractPeople = inngest.createFunction(
     const { workspaceId } = event.data as PeopleExtractRequestedData;
     const ws = await step.run("load-ws", () => getWorkspace(workspaceId));
     const { client: slack } = slackUserOrBotClient(ws);
+    const apiKey = await loadWorkspaceApiKey(workspaceId);
 
     const channels = await step.run("load-channels", () => listChannels(workspaceId));
     const channelMap = new Map(channels.map((c) => [c.slack_channel_id, c]));
@@ -123,7 +125,7 @@ export const extractPeople = inngest.createFunction(
           topChannels: topChannels.map((tc) => ({ name: tc.name, purpose: tc.purpose, count: tc.count })),
           sampleMessages: samples,
           totalMessages: u.total_messages,
-        }).catch(() => ({ role: null, summary: null, tools: [], expertise: [] }));
+        }, apiKey).catch(() => ({ role: null, summary: null, tools: [], expertise: [] }));
 
         await upsertPerson(workspaceId, {
           slack_user_id: u.slack_user_id,
@@ -160,7 +162,7 @@ export const extractPeople = inngest.createFunction(
             tools: extracted.tools,
             expertise: extracted.expertise,
             topChannels: topChannels.map((tc) => ({ name: tc.name, purpose: tc.purpose })),
-          }).catch(() => []);
+          }, apiKey).catch(() => []);
           for (const s of personSkills) {
             await upsertSkill(workspaceId, s);
           }

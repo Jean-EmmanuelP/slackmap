@@ -74,6 +74,7 @@ export type DefinedEntry = {
 export async function llmDefineTerms(
   candidates: Candidate[],
   channelId: string,
+  apiKey?: string,
 ): Promise<DefinedEntry[]> {
   if (candidates.length === 0) return [];
 
@@ -99,6 +100,7 @@ export async function llmDefineTerms(
       userMessage: `Define these ${batch.length} terms:\n\n${userMsg}`,
       maxTokens: 2048,
       model: "extract",
+      apiKey,
     });
 
     let parsed: Array<{ term: string; skip?: boolean; definition?: string; category?: string }>;

@@ -118,6 +118,7 @@ export async function extractSkillsFromChannel(
   channelId: string,
   channelName: string,
   messages: Msg[],
+  apiKey?: string,
 ): Promise<ExtractedSkill[]> {
   const seeds = findProceduralSeeds(messages);
   if (seeds.length === 0) return [];
@@ -141,6 +142,7 @@ export async function extractSkillsFromChannel(
       `Extract executable skills from these ${contexts.length} candidates:\n\n${userMsg}`,
     maxTokens: 4096,
     model: "extract",
+    apiKey,
   });
 
   let parsed: Array<{
@@ -338,7 +340,10 @@ export type PersonSkillInput = {
   displayName: string;
 };
 
-export async function extractSkillsForPerson(input: PersonSkillInput): Promise<ExtractedSkill[]> {
+export async function extractSkillsForPerson(
+  input: PersonSkillInput,
+  apiKey?: string,
+): Promise<ExtractedSkill[]> {
   if (!input.role || input.role.toLowerCase() === "bot") return [];
 
   const userMsg =
@@ -358,6 +363,7 @@ export async function extractSkillsForPerson(input: PersonSkillInput): Promise<E
     userMessage: userMsg,
     maxTokens: 2048,
     model: "extract",
+    apiKey,
   });
 
   try {

@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { Channel } from "@/lib/db";
 import { ChannelList } from "./ChannelList";
 import { ChannelGraph } from "./ChannelGraph";
+import { AnthropicKeyButton } from "./AnthropicKeyButton";
 
 // Atlas can be displayed as a list (default — better for B2B with rich per-row info)
 // or a graph (visual overview, useful for first impression / pitch demos).
@@ -49,7 +50,9 @@ export function AtlasView({
           your user identity (silent).
         </span>
         {result && <span className="text-xs text-emerald-700">{result}</span>}
-        <div className="ml-auto flex items-center gap-1 rounded-full bg-zinc-100 p-0.5">
+        <div className="ml-auto flex items-center gap-3">
+          <AnthropicKeyButton workspaceId={workspaceId} />
+        <div className="flex items-center gap-1 rounded-full bg-zinc-100 p-0.5">
           <button
             onClick={() => setView("list")}
             className={`px-3.5 py-1 rounded-full text-xs font-medium transition-colors ${
@@ -70,6 +73,7 @@ export function AtlasView({
           >
             Graph
           </button>
+        </div>
         </div>
       </div>
       {view === "list" ? (

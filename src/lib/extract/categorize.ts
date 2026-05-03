@@ -17,7 +17,7 @@ Look at name + extracted purpose. Output ONLY JSON, an array same order as input
 
 export type ChannelCategory = { slack_channel_id: string; category: string };
 
-export async function llmCategorize(channels: Input[]): Promise<ChannelCategory[]> {
+export async function llmCategorize(channels: Input[], apiKey?: string): Promise<ChannelCategory[]> {
   if (channels.length === 0) return [];
 
   const out: ChannelCategory[] = [];
@@ -35,6 +35,7 @@ export async function llmCategorize(channels: Input[]): Promise<ChannelCategory[
       userMessage: `Categorize:\n${userMsg}`,
       maxTokens: 2048,
       model: "classify",
+      apiKey,
     });
     try {
       const parsed = parseJsonBlock<ChannelCategory[]>(text);

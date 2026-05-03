@@ -11,6 +11,7 @@ import {
 } from "@/lib/db";
 import { slackClientForWorkspace } from "@/lib/slack";
 import { extractAcronymCandidates, llmDefineTerms } from "@/lib/extract/glossary";
+import { loadWorkspaceApiKey } from "@/lib/extract/llm";
 
 // Narrow Slack event channel field. message.* events deliver string IDs,
 // channel_created delivers an object, channel_archive a string. We accept all.
@@ -71,8 +72,9 @@ export const onSlackEvent = inngest.createFunction(
         await step.run("bump-known", () => bumpOccurrences(ws.id, seenTerms));
       }
       if (newTerms.length > 0) {
+        const apiKey = await loadWorkspaceApiKey(ws.id);
         await step.run("define-new", async () => {
-          const defined = await llmDefineTerms(newTerms, channelId).catch(() => []);
+          const defined = await llmDefineTerms(newTerms, channelId, apiKey).catch(() => []);
           if (defined.length > 0) {
             const stamped = defined.map((d) => ({ ...d, first_seen_ts: ev.ts ?? d.first_seen_ts }));
             await upsertGlossary(ws.id, stamped);

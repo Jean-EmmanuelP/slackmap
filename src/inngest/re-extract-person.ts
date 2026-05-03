@@ -7,6 +7,7 @@ import {
 } from "@/lib/db";
 import { fetchMessagesSince, sixMonthsAgoTs, slackUserOrBotClient } from "@/lib/slack";
 import { extractPerson } from "@/lib/extract/people";
+import { loadWorkspaceApiKey } from "@/lib/extract/llm";
 
 // Re-extract a single person's profile, optionally with a human-provided hint
 // like "she's the founder" or "he's a contractor working on iOS billing only".
@@ -97,6 +98,7 @@ export const reExtractPerson = inngest.createFunction(
       return { skipped: "bot_or_deleted" };
     }
 
+    const apiKey = await loadWorkspaceApiKey(workspaceId);
     const extracted = await extractPerson({
       display_name: profile.display_name,
       real_name: profile.real_name,
@@ -109,7 +111,7 @@ export const reExtractPerson = inngest.createFunction(
       sampleMessages: samples,
       totalMessages,
       hint: hint ?? null,
-    }).catch(() => ({ role: null, summary: null, tools: [], expertise: [] }));
+    }, apiKey).catch(() => ({ role: null, summary: null, tools: [], expertise: [] }));
 
     await upsertPerson(workspaceId, {
       slack_user_id: slackUserId,
