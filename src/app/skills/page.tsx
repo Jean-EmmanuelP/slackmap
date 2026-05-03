@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { db, listSkills } from "@/lib/db";
+import { db, listSkills, listChannels } from "@/lib/db";
 import { LiveStatus } from "@/components/LiveStatus";
 import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { SkillsTable } from "@/components/SkillsTable";
@@ -26,7 +26,12 @@ export default async function SkillsPage({
 
   if (!workspace) redirect("/");
 
-  const skills = await listSkills(workspace.id as string);
+  const [skills, channels] = await Promise.all([
+    listSkills(workspace.id as string),
+    listChannels(workspace.id as string),
+  ]);
+  const channelNames: Record<string, string> = {};
+  for (const c of channels) channelNames[c.slack_channel_id] = c.name;
 
   return (
     <WorkspaceShell
@@ -50,6 +55,7 @@ export default async function SkillsPage({
         skills={skills}
         workspaceId={workspace.id as string}
         teamDomain={(workspace.slack_team_domain as string | null) ?? null}
+        channelNames={channelNames}
       />
     </WorkspaceShell>
   );

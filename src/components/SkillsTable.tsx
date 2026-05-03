@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Skill } from "@/lib/db";
+import type { Skill, SkillSource } from "@/lib/db";
 import { SourceBadge } from "./SourceBadge";
 
 // Flat monochrome — no AI-pastel.
@@ -38,19 +38,23 @@ export function SkillsTable({
   skills,
   workspaceId,
   teamDomain,
+  channelNames,
 }: {
   skills: Skill[];
   workspaceId: string;
   teamDomain: string | null;
+  channelNames?: Record<string, string>;
 }) {
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | Skill["type"]>("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | SkillSource>("all");
   const [selected, setSelected] = useState<Skill | null>(null);
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
     return skills.filter((s) => {
       if (typeFilter !== "all" && s.type !== typeFilter) return false;
+      if (sourceFilter !== "all" && (s.source ?? "slack") !== sourceFilter) return false;
       if (ql.length === 0) return true;
       return (
         s.title.toLowerCase().includes(ql) ||
@@ -58,9 +62,10 @@ export function SkillsTable({
         (s.trigger?.toLowerCase().includes(ql) ?? false)
       );
     });
-  }, [skills, q, typeFilter]);
+  }, [skills, q, typeFilter, sourceFilter]);
 
   const types: Array<"all" | Skill["type"]> = ["all", "process", "policy", "decision", "escalation"];
+  const sources: Array<"all" | SkillSource> = ["all", "slack", "freshdesk"];
 
   return (
     <div className="flex-1 flex flex-col">
@@ -86,6 +91,23 @@ export function SkillsTable({
               }`}
             >
               {t}
+            </button>
+          ))}
+        </div>
+        <div className="flex border border-zinc-300">
+          {sources.map((s, i) => (
+            <button
+              key={s}
+              onClick={() => setSourceFilter(s)}
+              className={`px-3 py-1.5 text-[11px] uppercase tracking-wider font-[var(--font-mono)] transition-colors ${
+                i > 0 ? "border-l border-zinc-300" : ""
+              } ${
+                sourceFilter === s
+                  ? "bg-zinc-900 text-[var(--paper)]"
+                  : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+              }`}
+            >
+              {s}
             </button>
           ))}
         </div>
@@ -157,7 +179,14 @@ export function SkillsTable({
         )}
       </div>
 
-      {selected && <SkillPanel skill={selected} teamDomain={teamDomain} onClose={() => setSelected(null)} />}
+      {selected && (
+        <SkillPanel
+          skill={selected}
+          teamDomain={teamDomain}
+          channelNames={channelNames ?? {}}
+          onClose={() => setSelected(null)}
+        />
+      )}
     </div>
   );
 }
@@ -175,19 +204,34 @@ function ConfidenceBar({ value }: { value: number }) {
   );
 }
 
+function formatTs(ts: string): string {
+  const seconds = parseFloat(ts);
+  if (!Number.isFinite(seconds)) return ts;
+  const d = new Date(seconds * 1000);
+  if (Number.isNaN(d.getTime())) return ts;
+  return d.toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 function SkillPanel({
   skill,
   teamDomain,
+  channelNames,
   onClose,
 }: {
   skill: Skill;
   teamDomain: string | null;
+  channelNames: Record<string, string>;
   onClose: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/50" onClick={onClose} />
-      <aside className="w-[640px] h-full bg-white border-l border-zinc-200 overflow-y-auto p-8">
+      <aside className="w-[640px] h-full bg-[var(--paper)] border-l border-zinc-300 overflow-y-auto p-8">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-800"
@@ -195,14 +239,14 @@ function SkillPanel({
           ✕
         </button>
         <div
-          className={`inline-block px-2 py-0.5 rounded-md border text-xs mb-3 ${
+          className={`inline-block px-2 py-0.5 border text-[10px] uppercase tracking-wider font-[var(--font-mono)] mb-3 ${
             TYPE_COLORS[skill.type] ?? ""
           }`}
         >
           {skill.type}
         </div>
         <h2 className="text-2xl font-semibold text-zinc-900">{skill.title}</h2>
-        <p className="text-xs text-zinc-500 font-mono mt-1">{skill.slug}</p>
+        <p className="text-xs text-zinc-500 font-[var(--font-mono)] mt-1">{skill.slug}</p>
 
         {skill.trigger && (
           <Section title="Trigger">
@@ -228,19 +272,40 @@ function SkillPanel({
         <Section title={`Sources (${skill.citations.length})`}>
           <ul className="space-y-2">
             {skill.citations.map((c, i) => {
+              const isFreshdesk = c.channel_id.startsWith("freshdesk-");
               const link =
                 c.url ??
-                (teamDomain && !c.channel_id.startsWith("freshdesk-")
+                (teamDomain && !isFreshdesk
                   ? `https://${teamDomain}.slack.com/archives/${c.channel_id}/p${c.ts.replace(".", "")}`
                   : null);
+              const channelName = channelNames[c.channel_id];
+              const label = isFreshdesk
+                ? `Freshdesk @ ${formatTs(c.ts)}`
+                : channelName
+                ? `#${channelName} @ ${formatTs(c.ts)}`
+                : `${c.channel_id} @ ${formatTs(c.ts)}`;
               return (
-                <li key={i} className="text-xs text-zinc-600">
-                  {link ? (
-                    <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-900">
-                      {c.snippet ? `"${c.snippet.slice(0, 100)}…"` : `${c.channel_id} @ ${c.ts}`}
-                    </a>
-                  ) : (
-                    <span>{c.snippet ?? `${c.channel_id} @ ${c.ts}`}</span>
+                <li key={i} className="text-xs text-zinc-700">
+                  <div className="flex items-baseline gap-2">
+                    {link ? (
+                      <a
+                        href={link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-zinc-900 hover:text-zinc-700 underline underline-offset-2 decoration-zinc-400 hover:decoration-zinc-700 font-[var(--font-mono)] text-[11px] uppercase tracking-wider shrink-0"
+                      >
+                        {label}
+                      </a>
+                    ) : (
+                      <span className="font-[var(--font-mono)] text-[11px] uppercase tracking-wider text-zinc-500 shrink-0">
+                        {label}
+                      </span>
+                    )}
+                  </div>
+                  {c.snippet && (
+                    <p className="mt-1 text-zinc-600 italic line-clamp-3">
+                      &ldquo;{c.snippet.slice(0, 200)}{c.snippet.length > 200 ? "…" : ""}&rdquo;
+                    </p>
                   )}
                 </li>
               );

@@ -266,17 +266,24 @@ function ChannelDetailDrawer({
           {isMining
             ? "Mining…"
             : channel.mining_status === "done"
-            ? "Re-mine this channel"
+            ? "Re-mine (CLI required)"
             : "Mine this channel"}
         </button>
 
+        <p className="mt-2 text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] leading-relaxed">
+          Skill extraction runs locally with the Claude Code CLI. From your repo:
+        </p>
+        <pre className="mt-1 px-2 py-1.5 border border-zinc-300 text-[11px] text-zinc-700 font-[var(--font-mono)] whitespace-pre-wrap">
+{`pnpm tsx scripts/extract-slack-local.ts`}
+        </pre>
+
         {channel.is_private && channel.mining_status === "failed" && (
-          <p className="mt-2 text-xs text-amber-700">
+          <p className="mt-2 text-xs text-zinc-700">
             Private channel: you must be a member of this channel before mining works.
           </p>
         )}
         {channel.mining_error && (
-          <p className="mt-2 text-xs text-rose-600">Last error: {channel.mining_error}</p>
+          <p className="mt-2 text-xs text-zinc-700">Last error: {channel.mining_error}</p>
         )}
 
         <section className="mt-6">
@@ -291,7 +298,7 @@ function ChannelDetailDrawer({
             href={slackLink}
             target="_blank"
             rel="noopener noreferrer"
-            className="mt-6 inline-block text-sm text-blue-700 hover:text-blue-900"
+            className="mt-6 inline-block text-[11px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-400 hover:decoration-zinc-700"
           >
             Open in Slack →
           </a>

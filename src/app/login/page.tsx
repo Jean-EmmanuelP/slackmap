@@ -3,69 +3,145 @@
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabase-browser";
+import { LogoMark } from "@/components/Logo";
 
 function LoginInner() {
   const search = useSearchParams();
   const next = search.get("next") ?? null;
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState<"google" | "email" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [emailSent, setEmailSent] = useState(false);
+
+  function callbackUrl(): string {
+    const origin = window.location.origin;
+    const callback = new URL("/api/auth/callback", origin);
+    if (next) callback.searchParams.set("next", next);
+    return callback.toString();
+  }
 
   async function handleGoogle() {
-    setLoading(true);
+    setLoading("google");
     setError(null);
     try {
       const sb = supabaseBrowser();
-      const origin = window.location.origin;
-      const callback = new URL("/api/auth/callback", origin);
-      if (next) callback.searchParams.set("next", next);
       const { error } = await sb.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: callback.toString() },
+        options: { redirectTo: callbackUrl() },
       });
       if (error) {
         setError(error.message);
-        setLoading(false);
+        setLoading(null);
       }
-      // On success, the browser is redirected by Supabase — no code here runs.
     } catch (e) {
       setError(e instanceof Error ? e.message : "Sign-in failed");
-      setLoading(false);
+      setLoading(null);
+    }
+  }
+
+  async function handleEmail(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) return;
+    setLoading("email");
+    setError(null);
+    try {
+      const sb = supabaseBrowser();
+      const { error } = await sb.auth.signInWithOtp({
+        email: email.trim(),
+        options: { emailRedirectTo: callbackUrl() },
+      });
+      if (error) {
+        setError(error.message);
+        setLoading(null);
+      } else {
+        setEmailSent(true);
+        setLoading(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Sign-in failed");
+      setLoading(null);
     }
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-[var(--paper)] text-zinc-900 px-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-10 flex flex-col items-center text-center">
-          <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-3">
-            Slackmap
-          </span>
-          <h1 className="text-2xl font-medium tracking-tight">Sign in</h1>
-          <p className="mt-2 text-sm text-zinc-500 leading-relaxed max-w-xs">
-            Use your Google account. New here? Ask a teammate to send you an
-            invite link, or install the Slack app to create a workspace.
-          </p>
+    <main className="min-h-screen flex flex-col items-center justify-center bg-[var(--paper)] text-zinc-900 px-6 py-12">
+      <div className="text-center mb-8">
+        <h1 className="font-[var(--font-mono)] text-3xl md:text-4xl tracking-tight text-zinc-900">
+          Welcome back
+        </h1>
+        <p className="mt-3 text-sm text-zinc-500 font-[var(--font-mono)]">
+          Sign in to continue to your workspace
+        </p>
+      </div>
+
+      <div className="w-full max-w-md border border-zinc-200 p-8 bg-[var(--paper)]">
+        <div className="flex flex-col items-center text-center mb-6">
+          <LogoMark size={44} />
+          <h2 className="mt-4 text-lg font-medium text-zinc-900">Sign in to Slackmap</h2>
+          <p className="mt-1 text-sm text-zinc-500">Welcome back! Please sign in to continue.</p>
         </div>
 
-        <button
-          onClick={handleGoogle}
-          disabled={loading}
-          className="w-full h-11 inline-flex items-center justify-center gap-2.5 bg-[var(--brand)] hover:bg-[var(--brand-hover)] text-[var(--brand-fg)] text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed border border-[var(--brand)] hover:border-[var(--brand-hover)] transition-colors"
-        >
-          <GoogleGlyph />
-          {loading ? "Redirecting…" : "Continue with Google"}
-        </button>
+        {emailSent ? (
+          <div className="border border-zinc-300 p-4 text-sm text-zinc-700">
+            Magic link sent to <span className="font-[var(--font-mono)]">{email}</span>. Open it to
+            finish signing in. You can close this tab.
+          </div>
+        ) : (
+          <>
+            <button
+              onClick={handleGoogle}
+              disabled={loading !== null}
+              className="w-full h-11 inline-flex items-center justify-center gap-2.5 border border-zinc-300 hover:border-zinc-500 hover:bg-zinc-100 text-sm font-medium text-zinc-900 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+            >
+              <GoogleGlyph />
+              {loading === "google" ? "Redirecting…" : "Continue with Google"}
+            </button>
+
+            <div className="my-5 flex items-center gap-3">
+              <div className="flex-1 h-px bg-zinc-200" />
+              <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+                or
+              </span>
+              <div className="flex-1 h-px bg-zinc-200" />
+            </div>
+
+            <form onSubmit={handleEmail} className="space-y-3">
+              <label className="block">
+                <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+                  Email address
+                </span>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@example.com"
+                  className="mt-1.5 w-full px-3 py-2.5 bg-transparent border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
+                />
+              </label>
+              <button
+                type="submit"
+                disabled={loading !== null || !email.trim()}
+                className="w-full h-11 bg-zinc-900 hover:bg-zinc-800 text-[var(--paper)] text-sm font-medium disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+              >
+                {loading === "email" ? "Sending link…" : "Continue with email →"}
+              </button>
+            </form>
+          </>
+        )}
 
         {error && (
-          <p className="mt-4 text-xs text-red-700 text-center font-[var(--font-mono)]">
+          <p className="mt-4 text-xs text-zinc-700 text-center font-[var(--font-mono)]">
             {error}
           </p>
         )}
-
-        <div className="mt-10 text-center text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
-          By continuing you agree to use Slackmap with your team&apos;s data.
-        </div>
       </div>
+
+      <p className="mt-6 text-xs text-zinc-500">
+        Don&apos;t have an account?{" "}
+        <span className="text-zinc-900">Ask a teammate for an invite link.</span>
+      </p>
     </main>
   );
 }
@@ -80,31 +156,22 @@ export default function LoginPage() {
 
 function GoogleGlyph() {
   return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 18 18"
-      aria-hidden="true"
-      className="shrink-0"
-    >
+    <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true">
       <path
-        fill="#fff"
-        d="M17.64 9.2c0-.64-.06-1.25-.16-1.84H9v3.48h4.84a4.14 4.14 0 0 1-1.79 2.72v2.26h2.9c1.7-1.57 2.69-3.88 2.69-6.62Z"
+        fill="#4285F4"
+        d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z"
       />
       <path
-        fill="#fff"
-        d="M9 18c2.43 0 4.47-.81 5.96-2.18l-2.9-2.26c-.8.54-1.83.86-3.06.86a5.36 5.36 0 0 1-5.04-3.71H.96v2.34A9 9 0 0 0 9 18Z"
-        opacity=".85"
+        fill="#34A853"
+        d="M9 18c2.43 0 4.467-.806 5.956-2.184l-2.908-2.258c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z"
       />
       <path
-        fill="#fff"
-        d="M3.96 10.71A5.41 5.41 0 0 1 3.68 9c0-.59.1-1.17.28-1.71V4.95H.96A9 9 0 0 0 0 9c0 1.45.35 2.82.96 4.05l3-2.34Z"
-        opacity=".7"
+        fill="#FBBC05"
+        d="M3.964 10.707A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.707V4.961H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.039l3.007-2.332z"
       />
       <path
-        fill="#fff"
-        d="M9 3.58c1.32 0 2.5.45 3.44 1.35l2.58-2.58C13.46.89 11.43 0 9 0A9 9 0 0 0 .96 4.95l3 2.34A5.36 5.36 0 0 1 9 3.58Z"
-        opacity=".55"
+        fill="#EA4335"
+        d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.961l3.007 2.332C4.672 5.166 6.656 3.58 9 3.58z"
       />
     </svg>
   );

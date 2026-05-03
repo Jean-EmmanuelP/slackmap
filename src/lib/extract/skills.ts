@@ -50,12 +50,12 @@ export function findProceduralSeeds(messages: Msg[]): ProceduralSeed[] {
   return seeds;
 }
 
-const EXTRACT_SYSTEM = `You read Slack messages from a single channel and extract any
-recurring procedures, policies, or decision rules that an AI agent could execute
-on behalf of the company.
+const EXTRACT_SYSTEM = `You read Slack messages from a single channel and extract
+ONLY the high-signal procedures, policies, and decision rules an AI agent could
+EXECUTE on behalf of the company. The bar is high: if a fresh hire couldn't
+follow it without asking questions, it's not a skill — skip it.
 
-For each candidate, output a SkillSpec OR set "skip": true if it's not a real
-procedure (just chitchat, one-off requests, etc.).
+For each candidate, output a SkillSpec OR set "skip": true.
 
 Output JSON only — an array, one entry per input candidate, in the same order:
 
@@ -66,22 +66,37 @@ Output JSON only — an array, one entry per input candidate, in the same order:
     "domain": "engineering" | "product" | "support" | "ops" | "sales" | "marketing" | "leadership" | "other",
     "slug": "kebab-case-id",
     "title": "Title in natural english (max 60 chars)",
-    "trigger": "When this skill should activate (1 sentence)",
-    "steps_md": "Numbered markdown list of steps. Be specific. Use real names if mentioned.",
-    "decision_criteria": "If/then logic. null if N/A.",
-    "escalation": "When to escalate, to whom. null if N/A.",
+    "trigger": "When this skill should activate (1 sentence — observable signal)",
+    "steps_md": "Numbered markdown list of concrete steps. Reference real names, real tools, real thresholds.",
+    "decision_criteria": "Plain 'if X → Y' lines. null if N/A.",
+    "escalation": "When to escalate and to WHOM (display_name). null if N/A.",
+    "primary_owner": "display_name of the single named person who owns this. null if not recoverable.",
     "supporting_quotes": ["short quote 1", "short quote 2"]
   },
   { "skip": true },
   ...
 ]
 
-Hard rules:
-- Skip if it's a one-off question, a complaint, a personal opinion, or social chat.
-- Skip if it's only a reference to an external doc without explaining the procedure.
-- Be FAITHFUL to the source — don't invent steps that aren't grounded in the messages.
-- Keep slug lowercase-kebab. Title in plain english.
-- An AI agent will read steps_md and act. Be unambiguous and complete.`;
+REJECT (set skip:true) if ANY of the following are true:
+- The "procedure" is generic and doesn't name a specific actor, threshold, or tool.
+  Bad: "Handle a customer refund" — no actor, no threshold.
+  Good: "Refund < $500: Lisa decides; > $500: Sarah approval; > $2K: founder + Marc co-sign".
+- The steps are abstract ("1. Talk about it. 2. Decide.") — need concrete steps a fresh hire could follow.
+- It's a one-off question, complaint, personal opinion, or social chat.
+- It's only a reference to an external doc without explaining the procedure inline.
+- Less than 2 of: named actor, numeric threshold, named tool/system, named decision branch.
+
+REQUIREMENTS for skills you DO output:
+- decision_criteria uses plain "if X → Y" lines (one per line), e.g.:
+    if amount < 500 → CS agent processes immediately
+    if amount >= 500 and < 2000 → Sarah approves
+    if amount >= 2000 → founder + Marc co-sign
+- escalation names people by display_name when known ("escalate to @diego"), not "the lead".
+- primary_owner: identify the ONE named person who owns this. Use null if no clear owner.
+- Title is a verb phrase ("Approve a refund over $500", not "Refund Policy").
+- Slug uses lowercase-kebab.
+- An AI agent will read steps_md and act. No ambiguity. No "discuss with the team".
+- Be FAITHFUL to the source. Don't invent thresholds or names not in the messages.`;
 
 export type ExtractedSkill = {
   type: "process" | "policy" | "decision" | "escalation";
@@ -155,6 +170,9 @@ export async function extractSkillsFromChannel(
     steps_md?: string;
     decision_criteria?: string | null;
     escalation?: string | null;
+    /** Identified single named owner of this skill. Not persisted yet — future
+     *  migration can add a `primary_owner` column on `skills`. */
+    primary_owner?: string | null;
     supporting_quotes?: string[];
   }>;
   try {
@@ -329,7 +347,11 @@ Hard rules:
 - Title is a VERB phrase ("Handle a customer refund", not "Customer Support Lead").
 - Steps cite the actual SaaS tools they use (Stripe, Linear, Notion, Zendesk…).
 - Steps should encode the JUDGMENT calls this person makes — that's the value.
-- Faithful to the evidence. No inventing details not implied by the profile.`;
+- Faithful to the evidence. No inventing details not implied by the profile.
+- decision_criteria uses plain "if X → Y" lines (one per line) when applicable.
+- escalation names people by display_name when known.
+- Reject generic "process" skills with abstract steps ("1. Discuss. 2. Decide.").
+  Steps must be concrete enough a fresh hire could execute them.`;
 
 export type PersonSkillInput = {
   role: string;

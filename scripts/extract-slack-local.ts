@@ -114,6 +114,7 @@ type Channel = {
   name: string;
   is_private: boolean;
   archived: boolean;
+  message_count_6mo?: number | null;
 };
 
 type SkillIn = {
@@ -221,6 +222,87 @@ async function upsertGlossary(
   }
 }
 
+// Levenshtein distance, capped early once we exceed the threshold.
+function levenshtein(a: string, b: string, max: number): number {
+  if (a === b) return 0;
+  if (Math.abs(a.length - b.length) > max) return max + 1;
+  const m = a.length;
+  const n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = new Array<number>(n + 1);
+  let curr = new Array<number>(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    let rowMin = curr[0];
+    for (let j = 1; j <= n; j++) {
+      const cost = a.charCodeAt(i - 1) === b.charCodeAt(j - 1) ? 0 : 1;
+      curr[j] = Math.min(prev[j] + 1, curr[j - 1] + 1, prev[j - 1] + cost);
+      if (curr[j] < rowMin) rowMin = curr[j];
+    }
+    if (rowMin > max) return max + 1;
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+}
+
+function firstThreeWords(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, " ")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ");
+}
+
+function dedupSkills(skills: SkillIn[]): SkillIn[] {
+  // Group by similarity. Each group keeps the "best" skill and unions citations.
+  type Group = { keep: SkillIn; members: SkillIn[] };
+  const groups: Group[] = [];
+
+  function similar(a: SkillIn, b: SkillIn): boolean {
+    if (a.slug === b.slug) return true;
+    if (levenshtein(a.slug, b.slug, 3) <= 3) return true;
+    const aw = firstThreeWords(a.title);
+    const bw = firstThreeWords(b.title);
+    if (aw && aw === bw) return true;
+    return false;
+  }
+
+  // A skill is "better" if it has more citations (proxy for evidence). Tie:
+  // prefer the longer steps_md (more detail).
+  function score(s: SkillIn): number {
+    return s.citations.length * 100 + (s.steps_md?.length ?? 0);
+  }
+
+  for (const s of skills) {
+    const group = groups.find((g) => similar(g.keep, s) || g.members.some((m) => similar(m, s)));
+    if (!group) {
+      groups.push({ keep: s, members: [s] });
+      continue;
+    }
+    group.members.push(s);
+    if (score(s) > score(group.keep)) group.keep = s;
+  }
+
+  // Merge citations across each group.
+  return groups.map((g) => {
+    const seen = new Set<string>();
+    const merged: SkillIn["citations"] = [];
+    for (const m of g.members) {
+      for (const c of m.citations) {
+        const key = `${c.channel_id}:${c.ts}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push(c);
+      }
+    }
+    return { ...g.keep, citations: merged };
+  });
+}
+
 async function main() {
   process.env.LLM_BACKEND = "cli";
   delete process.env.ANTHROPIC_API_KEY;
@@ -262,16 +344,20 @@ async function main() {
     }
   }
 
-  // Pick top public channels by activity to mine. Bestrong has 35; cap to 12
-  // to keep cost/time bounded for the YC demo.
+  // Pick top public channels by activity to mine. Default cap = 30, override
+  // via SLACK_CHANNEL_CAP env (e.g. SLACK_CHANNEL_CAP=2 for fast smoke tests).
+  const DEFAULT_CHANNEL_CAP = 30;
+  const envCap = parseInt(process.env.SLACK_CHANNEL_CAP ?? "", 10);
+  const CHANNEL_CAP = Number.isFinite(envCap) && envCap > 0 ? envCap : DEFAULT_CHANNEL_CAP;
   const channels = await selectMany<Channel>("channels", {
-    select: "id,workspace_id,slack_channel_id,name,is_private,archived",
+    select: "id,workspace_id,slack_channel_id,name,is_private,archived,message_count_6mo",
     workspace_id: `eq.${WORKSPACE_ID}`,
     archived: "eq.false",
     is_private: "eq.false",
-    limit: "30",
+    order: "message_count_6mo.desc.nullslast",
+    limit: "60",
   });
-  console.log(`[setup] ${channels.length} candidate channels`);
+  console.log(`[setup] ${channels.length} candidate channels (cap=${CHANNEL_CAP})`);
 
   const oldest = sixMonthsAgoTs();
   type ActivityKey = string;
@@ -300,12 +386,17 @@ async function main() {
   let totalSkills = 0;
   let totalTerms = 0;
 
-  for (let i = 0; i < Math.min(channels.length, 12); i++) {
+  // Collect all channel-extracted skills in memory so we can run a final dedup
+  // pass before upserting (collapses near-duplicate slugs across channels).
+  const collectedSkills: SkillIn[] = [];
+
+  const channelLimit = Math.min(channels.length, CHANNEL_CAP);
+  for (let i = 0; i < channelLimit; i++) {
     const ch = channels[i];
-    console.log(`\n[ch ${i + 1}/${Math.min(channels.length, 12)}] #${ch.name}`);
+    console.log(`\n[ch ${i + 1}/${channelLimit}] #${ch.name}`);
     let messages: Array<{ ts: string; user?: string; text?: string }>;
     try {
-      messages = await fetchMessagesSince(slack, ch.slack_channel_id, oldest, 5);
+      messages = await fetchMessagesSince(slack, ch.slack_channel_id, oldest, 10);
     } catch (e) {
       console.warn(`  ! fetch: ${(e as Error).message}`);
       await update(
@@ -361,14 +452,11 @@ async function main() {
       }
     }
 
-    // 3) Skills (procedural)
+    // 3) Skills (procedural) — collect now, dedup + upsert at the end.
     try {
       const skills = await extractSkillsFromChannel(ch.slack_channel_id, ch.name, messages);
       for (const s of skills) {
-        await upsertSkill({
-          ...s,
-          domain: s.domain ?? null,
-        });
+        collectedSkills.push({ ...s, domain: s.domain ?? null });
       }
       totalSkills += skills.length;
       console.log(`  ${skills.length} skills`);
@@ -430,6 +518,21 @@ async function main() {
       u.channels.set(ch.slack_channel_id, cAgg);
       userProfiles.set(m.user, u);
     }
+  }
+
+  // Dedup channel-extracted skills before upserting. Two skills are merged if
+  // (a) Levenshtein(slug,slug) < 4, OR (b) they share their first 3 title words.
+  // The highest-confidence (proxied by source_count, then citation count) wins;
+  // citations from the merged skills are unioned in.
+  console.log(`\n[skills] dedup pass on ${collectedSkills.length} candidates…`);
+  const dedupedSkills = dedupSkills(collectedSkills);
+  console.log(
+    `[skills] ${collectedSkills.length} → ${dedupedSkills.length} after dedup (${
+      collectedSkills.length - dedupedSkills.length
+    } merged)`,
+  );
+  for (const s of dedupedSkills) {
+    await upsertSkill(s);
   }
 
   // Persist people_activity rollups
