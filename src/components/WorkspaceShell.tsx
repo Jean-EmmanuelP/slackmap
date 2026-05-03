@@ -79,7 +79,7 @@ export function WorkspaceShell({
       <aside
         className={`${
           collapsed ? "w-14" : "w-60"
-        } shrink-0 border-r border-zinc-200 flex flex-col transition-[width] duration-150 bg-[var(--paper)]`}
+        } shrink-0 border-r border-zinc-200 flex flex-col transition-[width] duration-150 bg-[var(--paper)] sticky top-0 h-screen`}
       >
         {/* Workspace switcher */}
         <div className="flex items-center gap-2.5 px-3 py-3 border-b border-zinc-200">
@@ -145,15 +145,6 @@ export function WorkspaceShell({
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0 bg-[var(--paper)]">
-        <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-200">
-          <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
-            Workspace
-          </span>
-          <div className="flex items-center gap-2 text-xs text-zinc-500 font-[var(--font-mono)]">
-            <span>Command Menu</span>
-            <kbd className="px-1.5 py-0.5 border border-zinc-300 text-zinc-700 text-[10px]">⌘K</kbd>
-          </div>
-        </div>
         <div className="flex-1 flex flex-col min-h-0">{children}</div>
       </main>
     </div>

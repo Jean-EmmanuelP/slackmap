@@ -42,46 +42,45 @@ export function AtlasView({
         <button
           onClick={mineAllPublic}
           disabled={busy}
-          className="text-xs font-medium px-4 py-1.5 rounded-full bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-wait"
+          className="text-[11px] font-[var(--font-mono)] uppercase tracking-wider px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-wait"
         >
           {busy ? "Queueing…" : "Mine all public channels"}
         </button>
         <span className="text-xs text-zinc-500">
-          Click any channel to mine it individually. Private channels read with
-          your user identity (silent).
+          Click any channel to mine it individually.
         </span>
-        {result && <span className="text-xs text-emerald-700">{result}</span>}
+        {result && <span className="text-xs text-zinc-700 font-[var(--font-mono)]">{result}</span>}
         <div className="ml-auto flex items-center gap-3">
           <FreshdeskConnectButton workspaceId={workspaceId} />
           <AnthropicKeyButton workspaceId={workspaceId} />
-        <div className="flex items-center gap-1 rounded-full bg-zinc-100 p-0.5">
-          <button
-            onClick={() => setView("list")}
-            className={`px-3.5 py-1 rounded-full text-xs font-medium transition-colors ${
-              view === "list"
-                ? "bg-white text-zinc-900 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-900"
-            }`}
-          >
-            List
-          </button>
-          <button
-            onClick={() => setView("graph")}
-            className={`px-3.5 py-1 rounded-full text-xs font-medium transition-colors ${
-              view === "graph"
-                ? "bg-white text-zinc-900 shadow-sm"
-                : "text-zinc-500 hover:text-zinc-900"
-            }`}
-          >
-            Graph
-          </button>
-        </div>
+          <div className="flex border border-zinc-300">
+            <button
+              onClick={() => setView("list")}
+              className={`px-3 py-1.5 text-[11px] uppercase tracking-wider font-[var(--font-mono)] transition-colors ${
+                view === "list"
+                  ? "bg-zinc-900 text-[var(--paper)]"
+                  : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+              }`}
+            >
+              List
+            </button>
+            <button
+              onClick={() => setView("graph")}
+              className={`px-3 py-1.5 text-[11px] uppercase tracking-wider font-[var(--font-mono)] border-l border-zinc-300 transition-colors ${
+                view === "graph"
+                  ? "bg-zinc-900 text-[var(--paper)]"
+                  : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+              }`}
+            >
+              Graph
+            </button>
+          </div>
         </div>
       </div>
       {view === "list" ? (
         <ChannelList channels={channels} workspaceId={workspaceId} teamDomain={teamDomain} />
       ) : (
-        <div className="flex-1 min-h-[600px] flex bg-white">
+        <div className="flex-1 min-h-[600px] flex">
           <ChannelGraph channels={channels} workspaceId={workspaceId} teamDomain={teamDomain} />
         </div>
       )}

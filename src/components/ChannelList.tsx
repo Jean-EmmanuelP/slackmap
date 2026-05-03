@@ -5,11 +5,11 @@ import type { Channel } from "@/lib/db";
 import { RelTime } from "./RelTime";
 
 const STATUS_STYLES: Record<Channel["mining_status"], string> = {
-  idle: "bg-zinc-100 text-zinc-500",
-  queued: "bg-amber-50 text-amber-700 border border-amber-200",
-  running: "bg-amber-100 text-amber-800 border border-amber-300 animate-pulse",
-  done: "bg-emerald-50 text-emerald-700 border border-emerald-200",
-  failed: "bg-rose-50 text-rose-700 border border-rose-200",
+  idle: "border border-zinc-300 text-zinc-500",
+  queued: "border border-zinc-400 text-zinc-700",
+  running: "border border-zinc-500 text-zinc-800 animate-pulse",
+  done: "border border-zinc-700 text-zinc-900",
+  failed: "border border-zinc-400 text-zinc-700",
 };
 
 export function ChannelList({
@@ -57,13 +57,13 @@ export function ChannelList({
           placeholder="Search channels…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="flex-1 max-w-sm px-3 py-2 rounded-md bg-white border border-zinc-200 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-400"
+          className="flex-1 max-w-sm px-3 py-2 bg-transparent border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
         />
         <FilterChips
           options={[
             { value: "all", label: "all" },
             { value: "public", label: "public" },
-            { value: "private", label: "🔒 private" },
+            { value: "private", label: "private" },
           ]}
           value={typeFilter}
           onChange={(v) => setTypeFilter(v as typeof typeFilter)}
@@ -80,19 +80,19 @@ export function ChannelList({
           value={statusFilter}
           onChange={(v) => setStatusFilter(v as typeof statusFilter)}
         />
-        <span className="ml-auto text-xs text-zinc-500">{filtered.length} channels</span>
+        <span className="ml-auto text-xs text-zinc-500 font-[var(--font-mono)]">{filtered.length} channels</span>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white">
+      <div className="flex-1 overflow-auto">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-50 sticky top-0 z-10 border-b border-zinc-200">
-            <tr className="text-left text-xs uppercase text-zinc-500">
-              <th className="px-6 py-3 font-medium">Channel</th>
-              <th className="px-6 py-3 font-medium">Purpose</th>
-              <th className="px-6 py-3 font-medium">Category</th>
-              <th className="px-6 py-3 font-medium text-right">Messages</th>
-              <th className="px-6 py-3 font-medium">Mining</th>
-              <th className="px-6 py-3 font-medium">Last mined</th>
+          <thead className="sticky top-0 z-10 bg-[var(--paper)] border-b border-zinc-200">
+            <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+              <th className="px-6 py-2.5 font-medium">Channel</th>
+              <th className="px-6 py-2.5 font-medium">Purpose</th>
+              <th className="px-6 py-2.5 font-medium">Category</th>
+              <th className="px-6 py-2.5 font-medium text-right">Messages</th>
+              <th className="px-6 py-2.5 font-medium">Mining</th>
+              <th className="px-6 py-2.5 font-medium">Last mined</th>
             </tr>
           </thead>
           <tbody>
@@ -100,7 +100,7 @@ export function ChannelList({
               <tr
                 key={ch.id}
                 onClick={() => setSelected(ch)}
-                className="border-t border-zinc-100 hover:bg-zinc-50 cursor-pointer align-top"
+                className="border-t border-zinc-200 hover:bg-zinc-100/50 cursor-pointer align-top"
               >
                 <td className="px-6 py-3">
                   <div className="flex items-center gap-2">
@@ -121,7 +121,7 @@ export function ChannelList({
                 </td>
                 <td className="px-6 py-3">
                   <span
-                    className={`inline-block px-2 py-0.5 rounded-md text-xs ${
+                    className={`inline-block px-2 py-0.5 text-[10px] uppercase tracking-wider font-[var(--font-mono)] ${
                       STATUS_STYLES[ch.mining_status]
                     }`}
                   >
@@ -171,15 +171,17 @@ function FilterChips<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex gap-1 flex-wrap">
-      {options.map((o) => (
+    <div className="flex border border-zinc-300">
+      {options.map((o, i) => (
         <button
           key={o.value}
           onClick={() => onChange(o.value)}
-          className={`px-2.5 py-1 rounded-full text-xs transition-colors ${
+          className={`px-2.5 py-1.5 text-[11px] uppercase tracking-wider font-[var(--font-mono)] transition-colors ${
+            i > 0 ? "border-l border-zinc-300" : ""
+          } ${
             value === o.value
-              ? "bg-zinc-900 text-white"
-              : "bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+              ? "bg-zinc-900 text-[var(--paper)]"
+              : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
           }`}
         >
           {o.label}
@@ -216,8 +218,8 @@ function ChannelDetailDrawer({
 
   return (
     <div className="fixed inset-0 z-50 flex">
-      <div className="flex-1 bg-black/30" onClick={onClose} />
-      <aside className="w-[640px] h-full bg-white border-l border-zinc-200 overflow-y-auto p-8 shadow-2xl">
+      <div className="flex-1 bg-black/20" onClick={onClose} />
+      <aside className="w-[640px] h-full bg-[var(--paper)] border-l border-zinc-300 overflow-y-auto p-8 shadow-2xl">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 text-zinc-400 hover:text-zinc-700"
@@ -235,7 +237,7 @@ function ChannelDetailDrawer({
             </span>
           )}
           <span
-            className={`text-xs px-2 py-0.5 rounded-md ${STATUS_STYLES[channel.mining_status]}`}
+            className={`text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-2 py-0.5 ${STATUS_STYLES[channel.mining_status]}`}
           >
             {channel.mining_status}
           </span>
@@ -255,12 +257,10 @@ function ChannelDetailDrawer({
         <button
           onClick={trigger}
           disabled={busy || isMining}
-          className={`mt-5 w-full px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+          className={`mt-5 w-full px-3 py-2 text-[11px] uppercase tracking-wider font-[var(--font-mono)] transition-colors border ${
             isMining
-              ? "bg-amber-50 text-amber-700 border border-amber-200 cursor-wait"
-              : channel.mining_status === "done"
-              ? "bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
-              : "bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
+              ? "border-zinc-300 text-zinc-500 cursor-wait"
+              : "border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800"
           }`}
         >
           {isMining
@@ -303,8 +303,8 @@ function ChannelDetailDrawer({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-md p-3">
-      <p className="text-xs text-zinc-500">{label}</p>
+    <div className="border border-zinc-200 p-3">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">{label}</p>
       <p className="text-sm font-medium text-zinc-900 mt-1">{value}</p>
     </div>
   );
@@ -312,8 +312,8 @@ function Stat({ label, value }: { label: string; value: string }) {
 
 function StatJSX({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-md p-3">
-      <p className="text-xs text-zinc-500">{label}</p>
+    <div className="border border-zinc-200 p-3">
+      <p className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">{label}</p>
       <p className="text-sm font-medium text-zinc-900 mt-1">{children}</p>
     </div>
   );

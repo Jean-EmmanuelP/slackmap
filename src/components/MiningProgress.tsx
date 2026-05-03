@@ -68,11 +68,11 @@ export function MiningProgress({ workspaceId }: { workspaceId: string }) {
   const pctDone = c.total > 0 ? Math.round(((c.done + c.failed) / c.total) * 100) : 0;
 
   return (
-    <div className="px-4 py-2 border-b border-zinc-200 bg-white/60 text-xs flex items-center gap-4 flex-wrap">
+    <div className="px-6 py-2 border-b border-zinc-200 text-[11px] flex items-center gap-4 flex-wrap font-[var(--font-mono)] uppercase tracking-wider">
       {p.isActive ? (
         <>
-          <span className="inline-flex items-center gap-2 text-amber-700">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+          <span className="inline-flex items-center gap-2 text-zinc-800">
+            <span className="w-1.5 h-1.5 rounded-full bg-zinc-800 animate-pulse" />
             Mining {c.done + c.failed} / {c.total} ({pctDone}%)
           </span>
           <span className="text-zinc-500">
@@ -80,10 +80,10 @@ export function MiningProgress({ workspaceId }: { workspaceId: string }) {
           </span>
         </>
       ) : (
-        <span className="inline-flex items-center gap-2 text-emerald-700">
-          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+        <span className="inline-flex items-center gap-2 text-zinc-700">
+          <span className="w-1.5 h-1.5 rounded-full bg-zinc-700" />
           {c.done} channels mined
-          {c.failed > 0 && <span className="text-rose-600 ml-2">· {c.failed} failed</span>}
+          {c.failed > 0 && <span className="text-zinc-500 ml-2">· {c.failed} failed</span>}
         </span>
       )}
       <span className="ml-auto flex gap-4 text-zinc-500">

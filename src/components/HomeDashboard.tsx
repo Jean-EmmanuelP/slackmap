@@ -65,7 +65,7 @@ export function HomeDashboard({
 
       <div className="mt-8 grid grid-cols-12 gap-4">
         {/* Welcome carousel */}
-        <section className="col-span-12 lg:col-span-8 border border-zinc-200 bg-white p-6 min-h-[200px] flex flex-col">
+        <section className="col-span-12 lg:col-span-8 border border-zinc-200 p-6 min-h-[200px] flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] px-2 py-0.5 border border-zinc-200">
@@ -116,7 +116,7 @@ export function HomeDashboard({
         </section>
 
         {/* Sources panel */}
-        <section className="col-span-12 lg:col-span-4 border border-zinc-200 bg-white p-6">
+        <section className="col-span-12 lg:col-span-4 border border-zinc-200 p-6">
           <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 mb-3 font-[var(--font-mono)]">
             Connected sources
           </div>
@@ -142,7 +142,7 @@ export function HomeDashboard({
         </section>
 
         {/* Install / quick start */}
-        <section className="col-span-12 lg:col-span-8 border border-zinc-200 bg-white p-6">
+        <section className="col-span-12 lg:col-span-8 border border-zinc-200 p-6">
           <div className="flex items-baseline gap-2">
             <span className="text-zinc-400 font-[var(--font-mono)]">›_</span>
             <h3 className="text-lg font-medium text-zinc-900">Use your skills in Claude Code</h3>
@@ -176,7 +176,7 @@ export function HomeDashboard({
 
         {/* Right rail: LLM key + Skills bundle */}
         <section className="col-span-12 lg:col-span-4 space-y-4">
-          <div className="border border-zinc-200 bg-white p-5">
+          <div className="border border-zinc-200 p-5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
                 LLM key
@@ -195,7 +195,7 @@ export function HomeDashboard({
             </div>
           </div>
 
-          <div className="border border-zinc-200 bg-white p-5">
+          <div className="border border-zinc-200 p-5">
             <div className="flex items-center justify-between">
               <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
                 Skills bundle
@@ -255,7 +255,7 @@ function SourceRow({
 
 function Stat({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
-    <div className="bg-white px-5 py-4">
+    <div className="bg-[var(--paper)] px-5 py-4">
       <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
         {label}
       </div>

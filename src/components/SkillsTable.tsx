@@ -4,11 +4,12 @@ import { useMemo, useState } from "react";
 import type { Skill } from "@/lib/db";
 import { SourceBadge } from "./SourceBadge";
 
+// Flat monochrome — no AI-pastel.
 const TYPE_COLORS: Record<string, string> = {
-  process: "bg-blue-50 text-blue-700 border-blue-200",
-  policy: "bg-amber-50 text-amber-700 border-amber-200",
-  decision: "bg-purple-50 text-purple-700 border-purple-200",
-  escalation: "bg-rose-50 text-rose-700 border-rose-200",
+  process: "border-zinc-300 text-zinc-700",
+  policy: "border-zinc-300 text-zinc-700",
+  decision: "border-zinc-300 text-zinc-700",
+  escalation: "border-zinc-300 text-zinc-700",
 };
 
 const DOMAIN_LABELS: Record<string, string> = {
@@ -69,17 +70,19 @@ export function SkillsTable({
           placeholder="Search skills…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="flex-1 max-w-md px-3 py-2 rounded-md bg-white border border-zinc-200 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+          className="flex-1 max-w-md px-3 py-2 bg-transparent border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
         />
-        <div className="flex gap-1">
-          {types.map((t) => (
+        <div className="flex border border-zinc-300">
+          {types.map((t, i) => (
             <button
               key={t}
               onClick={() => setTypeFilter(t)}
-              className={`px-3 py-1.5 rounded-md text-xs transition-colors ${
+              className={`px-3 py-1.5 text-[11px] uppercase tracking-wider font-[var(--font-mono)] transition-colors ${
+                i > 0 ? "border-l border-zinc-300" : ""
+              } ${
                 typeFilter === t
-                  ? "bg-zinc-100 text-zinc-900"
-                  : "bg-white text-zinc-600 hover:text-zinc-800"
+                  ? "bg-zinc-900 text-[var(--paper)]"
+                  : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
               }`}
             >
               {t}
@@ -88,16 +91,16 @@ export function SkillsTable({
         </div>
         <a
           href={`/api/workspace/${workspaceId}/skills.zip`}
-          className="ml-auto px-3 py-1.5 rounded-md text-xs bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/25"
+          className="ml-auto text-xs text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-400 hover:decoration-zinc-700 font-[var(--font-mono)] uppercase tracking-wider"
         >
-          ⬇ Export Claude skills bundle
+          Export bundle →
         </a>
-        <span className="text-xs text-zinc-500">{filtered.length} skills</span>
+        <span className="text-xs text-zinc-500 font-[var(--font-mono)]">{filtered.length} skills</span>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white">
+      <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
-          <div className="px-6 py-12 text-center text-zinc-400 text-sm">
+          <div className="px-6 py-12 text-center text-zinc-500 text-sm">
             No skills extracted yet. Mining in progress?
           </div>
         ) : (
@@ -106,27 +109,27 @@ export function SkillsTable({
             if (group.length === 0) return null;
             return (
               <section key={domain} className="border-b border-zinc-200">
-                <header className="sticky top-0 z-10 px-6 py-3 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between">
-                  <h3 className="font-[var(--font-serif)] text-base text-zinc-900">
+                <header className="sticky top-0 z-10 px-6 py-2 bg-[var(--paper)] border-b border-zinc-200 flex items-center justify-between">
+                  <h3 className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
                     {DOMAIN_LABELS[domain] ?? domain}
                   </h3>
-                  <span className="text-xs text-zinc-500 tabular-nums">{group.length} skills</span>
+                  <span className="text-[11px] text-zinc-500 tabular-nums font-[var(--font-mono)]">{group.length} skills</span>
                 </header>
-                <ul className="divide-y divide-zinc-100">
+                <ul className="divide-y divide-zinc-200">
                   {group.map((s) => (
                     <li
                       key={s.id}
                       onClick={() => setSelected(s)}
-                      className="px-6 py-4 hover:bg-zinc-50 cursor-pointer flex items-start gap-4"
+                      className="px-6 py-3.5 hover:bg-zinc-100/50 cursor-pointer flex items-start gap-4"
                     >
                       <span
-                        className={`mt-1 inline-block px-2 py-0.5 rounded-md border text-[10px] uppercase tracking-wide shrink-0 ${
+                        className={`mt-0.5 inline-block px-2 py-0.5 border text-[10px] uppercase tracking-wider font-[var(--font-mono)] shrink-0 ${
                           TYPE_COLORS[s.type] ?? ""
                         }`}
                       >
                         {s.type}
                       </span>
-                      <span className="mt-1"><SourceBadge source={s.source} /></span>
+                      <span className="mt-0.5"><SourceBadge source={s.source} /></span>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-zinc-900 text-sm">{s.title}</div>
                         {s.trigger && (
@@ -140,7 +143,7 @@ export function SkillsTable({
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={(e) => e.stopPropagation()}
-                          className="text-xs text-blue-700 hover:text-blue-900"
+                          className="text-xs text-zinc-500 hover:text-zinc-900 underline underline-offset-2 font-[var(--font-mono)]"
                         >
                           .md
                         </a>

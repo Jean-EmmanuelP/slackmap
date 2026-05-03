@@ -23,24 +23,24 @@ export function LiveStatus({ status, progress, total, lastEventAt }: Props) {
   if (status === "pending" || status === "running") {
     const pct = total > 0 ? Math.floor((progress / total) * 100) : 0;
     return (
-      <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-700 text-sm flex items-center gap-3">
-        <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-        Mining your Slack… {progress}/{total} channels ({pct}%)
+      <div className="px-6 py-2 border-b border-zinc-200 text-zinc-700 text-xs flex items-center gap-3 font-[var(--font-mono)] uppercase tracking-wider">
+        <span className="inline-block w-1.5 h-1.5 rounded-full bg-zinc-700 animate-pulse" />
+        Mining {progress}/{total} channels ({pct}%)
       </div>
     );
   }
 
   if (status === "failed") {
     return (
-      <div className="px-4 py-2 bg-rose-50 border-b border-rose-200 text-rose-700 text-sm">
-        Backfill failed. Check Inngest logs.
+      <div className="px-6 py-2 border-b border-zinc-300 text-zinc-700 text-xs font-[var(--font-mono)] uppercase tracking-wider">
+        Backfill failed
       </div>
     );
   }
 
   return (
-    <div className="px-4 py-2 bg-emerald-50/40 border-b border-zinc-200 text-zinc-500 text-xs flex items-center gap-2">
-      <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+    <div className="px-6 py-2 border-b border-zinc-200 text-zinc-500 text-[11px] flex items-center gap-2 font-[var(--font-mono)] uppercase tracking-wider">
+      <span className="inline-block w-1.5 h-1.5 rounded-full bg-zinc-700" />
       Live — last update {relativeTime(lastEventAt)}
     </div>
   );
