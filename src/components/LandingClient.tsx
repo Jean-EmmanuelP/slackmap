@@ -210,7 +210,7 @@ export function LandingClient({
       <footer className="border-t border-zinc-200 px-8 py-10 text-xs text-zinc-500 flex items-center justify-between max-w-6xl mx-auto">
         <span>Slackmap — open-source Company Brain</span>
         <a
-          href="https://github.com"
+          href="https://github.com/Jean-EmmanuelP/slackmap"
           target="_blank"
           rel="noopener noreferrer"
           className="hover:text-zinc-800"
@@ -245,7 +245,7 @@ function Nav({ oauthUrl }: { oauthUrl: string }) {
             Open source
           </a>
           <a
-            href="https://github.com"
+            href="https://github.com/Jean-EmmanuelP/slackmap"
             target="_blank"
             rel="noopener noreferrer"
             className="hover:text-zinc-900"
