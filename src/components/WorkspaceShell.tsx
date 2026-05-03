@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { supabaseBrowser } from "@/lib/supabase-browser";
 
 type NavItem = {
   href: string;
@@ -46,6 +47,12 @@ const GlossaryIcon = () => (
     <path d="M3 12a2 2 0 0 1 2-2h8" />
   </svg>
 );
+const VaultIcon = () => (
+  <svg viewBox="0 0 16 16" fill="none" className={ICON} stroke="currentColor" strokeWidth="1.4">
+    <rect x="2" y="6" width="12" height="8" />
+    <path d="M5 6V4a3 3 0 0 1 6 0v2" />
+  </svg>
+);
 
 export function WorkspaceShell({
   workspaceName,
@@ -67,6 +74,7 @@ export function WorkspaceShell({
     { href: `/people?ws=${workspaceId}`, key: "/people", label: "People", icon: <PeopleIcon /> },
     { href: `/skills?ws=${workspaceId}`, key: "/skills", label: "Skills", icon: <SkillsIcon /> },
     { href: `/glossary?ws=${workspaceId}`, key: "/glossary", label: "Glossary", icon: <GlossaryIcon /> },
+    { href: `/vaults?ws=${workspaceId}`, key: "/vault", label: "Vault", icon: <VaultIcon /> },
   ];
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -133,22 +141,25 @@ export function WorkspaceShell({
           </nav>
         </div>
 
-        <div className="mt-auto border-t border-zinc-200 px-2 py-2 flex items-center justify-between">
-          {!collapsed && (
+        <div className="mt-auto border-t border-zinc-200">
+          <SignedInUser collapsed={collapsed} />
+          <div className="px-2 py-2 flex items-center justify-between border-t border-zinc-200">
+            {!collapsed && (
+              <button
+                onClick={() => setConfirmOpen(true)}
+                className="text-[11px] uppercase tracking-wider text-zinc-500 hover:text-zinc-900 px-2 py-1 font-[var(--font-mono)]"
+              >
+                Disconnect
+              </button>
+            )}
             <button
-              onClick={() => setConfirmOpen(true)}
-              className="text-[11px] uppercase tracking-wider text-zinc-500 hover:text-zinc-900 px-2 py-1 font-[var(--font-mono)]"
+              onClick={() => setCollapsed((v) => !v)}
+              aria-label="Toggle sidebar"
+              className="ml-auto text-zinc-500 hover:text-zinc-900 size-6 flex items-center justify-center border border-zinc-200 hover:border-zinc-400"
             >
-              Disconnect
+              {collapsed ? "›" : "‹"}
             </button>
-          )}
-          <button
-            onClick={() => setCollapsed((v) => !v)}
-            aria-label="Toggle sidebar"
-            className="ml-auto text-zinc-500 hover:text-zinc-900 size-6 flex items-center justify-center border border-zinc-200 hover:border-zinc-400"
-          >
-            {collapsed ? "›" : "‹"}
-          </button>
+          </div>
         </div>
       </aside>
 
@@ -233,5 +244,66 @@ function NavLink({
       {icon}
       {!collapsed && <span className="truncate">{label}</span>}
     </Link>
+  );
+}
+
+type SessionUser = {
+  email: string | null;
+  avatarUrl: string | null;
+};
+
+function SignedInUser({ collapsed }: { collapsed: boolean }) {
+  const [user, setUser] = useState<SessionUser | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const sb = supabaseBrowser();
+    sb.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      const u = data.user;
+      if (!u) {
+        setUser(null);
+        return;
+      }
+      const meta = (u.user_metadata ?? {}) as {
+        avatar_url?: string;
+        picture?: string;
+      };
+      setUser({
+        email: u.email ?? null,
+        avatarUrl: meta.avatar_url ?? meta.picture ?? null,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  if (!user) return null;
+
+  const initial = (user.email?.trim()[0] ?? "·").toUpperCase();
+
+  return (
+    <div className="px-2 py-2 flex items-center gap-2 min-w-0">
+      {user.avatarUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={user.avatarUrl}
+          alt={user.email ?? "User"}
+          width={24}
+          height={24}
+          className="size-6 object-cover border border-zinc-200 shrink-0"
+        />
+      ) : (
+        <span className="size-6 shrink-0 flex items-center justify-center bg-zinc-200 text-zinc-700 text-[11px] font-medium font-[var(--font-mono)]">
+          {initial}
+        </span>
+      )}
+      {!collapsed && (
+        <span className="text-[11px] text-zinc-600 truncate font-[var(--font-mono)]">
+          {user.email ?? "Signed in"}
+        </span>
+      )}
+    </div>
   );
 }

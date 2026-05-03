@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 type Counts = {
   channels: number;
@@ -12,6 +12,16 @@ type Counts = {
 };
 
 type Sources = { slack: boolean; freshdesk: boolean };
+
+type Invite = {
+  id: string;
+  token: string;
+  url: string;
+  status: string;
+  uses_count: number;
+  max_uses: number;
+  created_at: string;
+};
 
 const WELCOME_CARDS = [
   {
@@ -37,13 +47,20 @@ export function HomeDashboard({
   sources,
   anthropicKeySet,
   counts,
+  currentUserId,
+  isAdmin,
 }: {
   workspaceId: string;
   workspaceName: string;
   sources: Sources;
   anthropicKeySet: boolean;
   counts: Counts;
+  currentUserId: string | null;
+  isAdmin: boolean;
 }) {
+  // Mark currentUserId as intentionally read so future per-user state can use
+  // it; today the dashboard only branches on isAdmin.
+  void currentUserId;
   const [card, setCard] = useState(0);
   const [tab, setTab] = useState<"cli" | "agent" | "api">("cli");
 
@@ -127,6 +144,12 @@ export function HomeDashboard({
           <Stat label="Skills" value={counts.skills} hint="exportable" />
           <Stat label="Glossary" value={counts.glossary} hint="terms" />
         </section>
+
+        {isAdmin && (
+          <section className="col-span-12 border border-zinc-200 p-6">
+            <InviteTeammate workspaceId={workspaceId} />
+          </section>
+        )}
 
         {/* Install / quick start */}
         <section className="col-span-12 lg:col-span-8 border border-zinc-200 p-6">
@@ -297,6 +320,162 @@ function Code({ value }: { value: string }) {
       >
         Copy
       </button>
+    </div>
+  );
+}
+
+function InviteTeammate({ workspaceId }: { workspaceId: string }) {
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/workspace/${workspaceId}/invites`, {
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        setError(`Failed to load invites (${res.status})`);
+        setInvites([]);
+        return;
+      }
+      const json = await res.json();
+      setInvites((json.invites ?? []) as Invite[]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to load invites");
+    } finally {
+      setLoading(false);
+    }
+  }, [workspaceId]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function createInvite() {
+    setCreating(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/workspace/${workspaceId}/invites`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? `Failed to create invite (${res.status})`);
+        return;
+      }
+      const json = await res.json();
+      const url = json.url as string;
+      try {
+        await navigator.clipboard.writeText(url);
+        setCopiedId(json.invite?.id ?? "new");
+        setTimeout(() => setCopiedId(null), 2000);
+      } catch {
+        // Clipboard API can fail in non-secure contexts — fall through.
+      }
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create invite");
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function revoke(inviteId: string) {
+    setError(null);
+    const res = await fetch(
+      `/api/workspace/${workspaceId}/invites/${inviteId}`,
+      { method: "DELETE" },
+    );
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setError(json.error ?? `Failed to revoke (${res.status})`);
+      return;
+    }
+    await load();
+  }
+
+  async function copy(url: string, id: string) {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId(null), 2000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Copy failed");
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+            Team
+          </div>
+          <h3 className="mt-1 text-lg font-medium text-zinc-900">
+            Invite a teammate
+          </h3>
+          <p className="mt-1 text-sm text-zinc-500 max-w-lg leading-relaxed">
+            Generate a one-click link. Anyone with this URL can join the
+            workspace as a member after signing in with Google.
+          </p>
+        </div>
+        <button
+          onClick={createInvite}
+          disabled={creating}
+          className="shrink-0 text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800 disabled:opacity-50"
+        >
+          {creating ? "Generating…" : "Invite teammate"}
+        </button>
+      </div>
+
+      {error && (
+        <p className="mt-3 text-xs text-red-700 font-[var(--font-mono)]">{error}</p>
+      )}
+
+      <div className="mt-5">
+        {loading ? (
+          <p className="text-xs text-zinc-500 font-[var(--font-mono)] uppercase tracking-wider">
+            Loading…
+          </p>
+        ) : invites.length === 0 ? (
+          <p className="text-xs text-zinc-500 font-[var(--font-mono)] uppercase tracking-wider">
+            No active invites yet.
+          </p>
+        ) : (
+          <ul className="border border-zinc-200 divide-y divide-zinc-200">
+            {invites.map((inv) => (
+              <li
+                key={inv.id}
+                className="flex items-center gap-3 px-4 py-3 text-sm"
+              >
+                <span className="font-[var(--font-mono)] text-zinc-700 text-xs truncate flex-1">
+                  …{inv.token.slice(-8)}
+                </span>
+                <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] tabular-nums">
+                  {inv.uses_count}/{inv.max_uses} used
+                </span>
+                <button
+                  onClick={() => copy(inv.url, inv.id)}
+                  className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-2 py-1 border border-zinc-300 hover:border-zinc-500 text-zinc-700 hover:text-zinc-900"
+                >
+                  {copiedId === inv.id ? "Copied" : "Copy link"}
+                </button>
+                <button
+                  onClick={() => revoke(inv.id)}
+                  className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-2 py-1 text-zinc-500 hover:text-red-700"
+                >
+                  Revoke
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }

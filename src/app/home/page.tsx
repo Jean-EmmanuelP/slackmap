@@ -2,6 +2,8 @@ import { redirect } from "next/navigation";
 import { db, listChannels, listSkills, listGlossary, listPeople } from "@/lib/db";
 import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { HomeDashboard } from "@/components/HomeDashboard";
+import { getSessionUser } from "@/lib/supabase-server";
+import { userIsAdmin } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -23,12 +25,18 @@ export default async function HomePage({
 
   if (!workspace) redirect("/");
 
-  const [channels, skills, glossary, people] = await Promise.all([
+  const [channels, skills, glossary, people, sessionUser] = await Promise.all([
     listChannels(workspace.id as string),
     listSkills(workspace.id as string),
     listGlossary(workspace.id as string),
     listPeople(workspace.id as string),
+    getSessionUser(),
   ]);
+
+  const currentUserId = sessionUser?.id ?? null;
+  const isAdmin = currentUserId
+    ? await userIsAdmin(workspace.id as string, currentUserId)
+    : false;
 
   const counts = {
     channels: channels.filter((c) => !c.archived).length,
@@ -57,6 +65,8 @@ export default async function HomePage({
         }}
         anthropicKeySet={!!workspace.anthropic_key_set_at}
         counts={counts}
+        currentUserId={currentUserId}
+        isAdmin={isAdmin}
       />
     </WorkspaceShell>
   );
