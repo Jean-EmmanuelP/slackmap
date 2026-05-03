@@ -19,6 +19,11 @@ export type Workspace = {
   last_event_received_at: string | null;
   encrypted_anthropic_api_key: string | null;
   anthropic_key_set_at: string | null;
+  encrypted_freshdesk_api_key: string | null;
+  freshdesk_domain: string | null;
+  freshdesk_connected_at: string | null;
+  freshdesk_status: "idle" | "queued" | "running" | "done" | "failed";
+  freshdesk_error: string | null;
 };
 
 export type Channel = {
@@ -81,6 +86,7 @@ export type GlossaryEntry = {
   first_seen_ts: string | null;
   occurrences: number;
   last_seen_at: string;
+  source: "slack" | "freshdesk";
 };
 
 let _client: SupabaseClient | null = null;
@@ -186,6 +192,60 @@ export async function setWorkspaceAnthropicKey(
   if (error) throw error;
 }
 
+export type FreshdeskConnection = {
+  domain: string;
+  encryptedKey: string;
+};
+
+export async function setWorkspaceFreshdesk(
+  workspaceId: string,
+  connection: FreshdeskConnection | null,
+): Promise<void> {
+  const { error } = await db()
+    .from("workspaces")
+    .update({
+      encrypted_freshdesk_api_key: connection?.encryptedKey ?? null,
+      freshdesk_domain: connection?.domain ?? null,
+      freshdesk_connected_at: connection ? new Date().toISOString() : null,
+      freshdesk_status: connection ? "queued" : "idle",
+      freshdesk_error: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workspaceId);
+  if (error) throw error;
+}
+
+export async function getWorkspaceFreshdesk(
+  workspaceId: string,
+): Promise<{ domain: string; encryptedKey: string } | null> {
+  const { data, error } = await db()
+    .from("workspaces")
+    .select("freshdesk_domain, encrypted_freshdesk_api_key")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.freshdesk_domain || !data?.encrypted_freshdesk_api_key) return null;
+  return {
+    domain: data.freshdesk_domain as string,
+    encryptedKey: data.encrypted_freshdesk_api_key as string,
+  };
+}
+
+export async function setFreshdeskStatus(
+  workspaceId: string,
+  status: Workspace["freshdesk_status"],
+  error: string | null = null,
+): Promise<void> {
+  await db()
+    .from("workspaces")
+    .update({
+      freshdesk_status: status,
+      freshdesk_error: error,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workspaceId);
+}
+
 export async function getWorkspaceAnthropicKey(workspaceId: string): Promise<string | null> {
   const { data, error } = await db()
     .from("workspaces")
@@ -289,10 +349,10 @@ export async function upsertGlossary(
     first_seen_channel_id?: string | null;
     first_seen_ts?: string | null;
     occurrences?: number;
+    source?: "slack" | "freshdesk";
   }>,
 ): Promise<void> {
   if (entries.length === 0) return;
-  // Upsert: keep earliest first_seen, sum occurrences.
   for (const e of entries) {
     const { data: existing } = await db()
       .from("glossary_entries")
@@ -320,6 +380,7 @@ export async function upsertGlossary(
         first_seen_channel_id: e.first_seen_channel_id ?? null,
         first_seen_ts: e.first_seen_ts ?? null,
         occurrences: e.occurrences ?? 1,
+        source: e.source ?? "slack",
       });
     }
   }
@@ -357,6 +418,8 @@ export async function bumpOccurrences(workspaceId: string, terms: string[]): Pro
   }
 }
 
+export type SkillSource = "slack" | "freshdesk";
+
 export type Skill = {
   id: string;
   workspace_id: string;
@@ -368,7 +431,8 @@ export type Skill = {
   steps_md: string | null;
   decision_criteria: string | null;
   escalation: string | null;
-  citations: Array<{ channel_id: string; ts: string; snippet?: string }>;
+  citations: Array<{ channel_id: string; ts: string; snippet?: string; url?: string }>;
+  source: SkillSource;
   source_count: number;
   confidence: number;
   last_observed_at: string | null;
@@ -414,7 +478,8 @@ export async function upsertSkill(
     steps_md: string;
     decision_criteria: string | null;
     escalation: string | null;
-    citations: Array<{ channel_id: string; ts: string; snippet?: string }>;
+    citations: Array<{ channel_id: string; ts: string; snippet?: string; url?: string }>;
+    source?: SkillSource;
   },
 ): Promise<void> {
   const now = new Date().toISOString();
@@ -467,6 +532,7 @@ export async function upsertSkill(
       decision_criteria: s.decision_criteria,
       escalation: s.escalation,
       citations: s.citations,
+      source: s.source ?? "slack",
       source_count: 1,
       confidence: 0.5,
       first_observed_at: now,

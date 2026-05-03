@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { GlossaryEntry } from "@/lib/db";
+import { SourceBadge } from "./SourceBadge";
 
 const CATEGORIES = ["all", "product", "acronym", "jargon", "tool", "team"] as const;
 
@@ -58,6 +59,7 @@ export function GlossaryTable({
             <tr className="text-left text-xs uppercase text-zinc-500">
               <th className="px-6 py-3 font-medium">Term</th>
               <th className="px-6 py-3 font-medium">Definition</th>
+              <th className="px-6 py-3 font-medium">Source</th>
               <th className="px-6 py-3 font-medium">Category</th>
               <th className="px-6 py-3 font-medium text-right">Occurrences</th>
               <th className="px-6 py-3 font-medium">First seen</th>
@@ -68,6 +70,7 @@ export function GlossaryTable({
               <tr key={e.id} className="border-t border-zinc-100 hover:bg-zinc-50">
                 <td className="px-6 py-3 font-mono text-zinc-900">{e.term}</td>
                 <td className="px-6 py-3 text-zinc-700">{e.definition}</td>
+                <td className="px-6 py-3"><SourceBadge source={e.source} /></td>
                 <td className="px-6 py-3">
                   <span className="inline-block px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-700 text-xs">
                     {e.category ?? "—"}
@@ -94,7 +97,7 @@ export function GlossaryTable({
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-6 py-12 text-center text-zinc-400">
+                <td colSpan={6} className="px-6 py-12 text-center text-zinc-400">
                   No entries.
                 </td>
               </tr>

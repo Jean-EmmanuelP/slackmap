@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Instrument_Serif } from "next/font/google";
+import { Geist, Geist_Mono, Instrument_Serif, DM_Sans } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -19,9 +19,15 @@ const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
 });
 
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
+  subsets: ["latin"],
+});
+
 export const metadata: Metadata = {
-  title: "Slackmap — Live company memory from your Slack",
-  description: "Connect your Slack and get a live map of how your company actually works.",
+  title: "Slackmap — Your company brain, extracted from your stack",
+  description:
+    "Connect Slack, Freshdesk, and more. Get an executable skills file your AI agents can actually run.",
 };
 
 export default function RootLayout({
@@ -32,10 +38,10 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${instrumentSerif.variable} ${dmSans.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+      <body className="min-h-full flex flex-col font-[var(--font-dm-sans)]" suppressHydrationWarning>
         {children}
       </body>
     </html>

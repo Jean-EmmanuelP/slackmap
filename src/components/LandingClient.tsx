@@ -39,11 +39,19 @@ export function LandingClient({
           className="font-[var(--font-serif)] text-[44px] sm:text-[64px] md:text-[80px] leading-[1] tracking-tight max-w-4xl"
         >
           Your company&apos;s brain,{" "}
-          <em className="font-[var(--font-serif)]">extracted from Slack.</em>
+          <em className="font-[var(--font-serif)]">extracted from your stack.</em>
         </motion.h1>
+        <motion.p
+          {...fadeUpDelayed(0.15)}
+          className="mt-8 max-w-2xl text-zinc-600 text-base md:text-lg"
+        >
+          Slack, Freshdesk, and more — pulled into one living map of how your
+          company actually works. Exported as executable skills your AI agents
+          can run.
+        </motion.p>
         <motion.div
           {...fadeUpDelayed(0.25)}
-          className="mt-12 flex flex-col items-center gap-3"
+          className="mt-10 flex flex-col items-center gap-3"
         >
           <a
             href={oauthUrl}
@@ -51,6 +59,12 @@ export function LandingClient({
           >
             Connect your Slack
           </a>
+          <div className="text-xs text-zinc-500 mt-2">
+            Available connectors:
+            <span className="ml-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">Slack</span>
+            <span className="ml-1 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Freshdesk</span>
+            <span className="ml-1 text-zinc-400">· Notion, Linear, Github coming soon</span>
+          </div>
         </motion.div>
         {error && (
           <p className="mt-6 text-sm text-rose-600">

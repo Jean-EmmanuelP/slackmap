@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { Skill } from "@/lib/db";
+import { SourceBadge } from "./SourceBadge";
 
 const TYPE_COLORS: Record<string, string> = {
   process: "bg-blue-50 text-blue-700 border-blue-200",
@@ -125,6 +126,7 @@ export function SkillsTable({
                       >
                         {s.type}
                       </span>
+                      <span className="mt-1"><SourceBadge source={s.source} /></span>
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-zinc-900 text-sm">{s.title}</div>
                         {s.trigger && (
@@ -223,13 +225,15 @@ function SkillPanel({
         <Section title={`Sources (${skill.citations.length})`}>
           <ul className="space-y-2">
             {skill.citations.map((c, i) => {
-              const link = teamDomain
-                ? `https://${teamDomain}.slack.com/archives/${c.channel_id}/p${c.ts.replace(".", "")}`
-                : null;
+              const link =
+                c.url ??
+                (teamDomain && !c.channel_id.startsWith("freshdesk-")
+                  ? `https://${teamDomain}.slack.com/archives/${c.channel_id}/p${c.ts.replace(".", "")}`
+                  : null);
               return (
                 <li key={i} className="text-xs text-zinc-600">
                   {link ? (
-                    <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300">
+                    <a href={link} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-900">
                       {c.snippet ? `"${c.snippet.slice(0, 100)}…"` : `${c.channel_id} @ ${c.ts}`}
                     </a>
                   ) : (

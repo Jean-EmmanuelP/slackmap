@@ -7,6 +7,7 @@ import { extractSkills } from "@/inngest/extract-skills";
 import { mineChannel } from "@/inngest/mine-channel";
 import { extractPeople } from "@/inngest/extract-people";
 import { reExtractPerson } from "@/inngest/re-extract-person";
+import { extractFreshdesk } from "@/inngest/extract-freshdesk";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -18,5 +19,6 @@ export const { GET, POST, PUT } = serve({
     mineChannel,
     extractPeople,
     reExtractPerson,
+    extractFreshdesk,
   ],
 });

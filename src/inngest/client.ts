@@ -16,6 +16,7 @@ export type PersonReExtractData = {
   slackUserId: string;
   hint: string | null;
 };
+export type FreshdeskExtractRequestedData = { workspaceId: string };
 
 export type SlackEventData = {
   teamId: string;
