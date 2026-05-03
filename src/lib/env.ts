@@ -10,13 +10,10 @@ function optional(name: string): string | undefined {
 
 export const env = {
   slack: {
-    clientId: required("SLACK_CLIENT_ID"),
-    clientSecret: required("SLACK_CLIENT_SECRET"),
-    signingSecret: required("SLACK_SIGNING_SECRET"),
-    redirectUri: required("SLACK_REDIRECT_URI"),
-    // Bot scopes: minimal — just enough to receive Events API webhooks for
-    // live updates. We DON'T mine via the bot (no conversations.join → no
-    // public announcement when adding to a channel).
+    get clientId() { return required("SLACK_CLIENT_ID"); },
+    get clientSecret() { return required("SLACK_CLIENT_SECRET"); },
+    get signingSecret() { return required("SLACK_SIGNING_SECRET"); },
+    get redirectUri() { return required("SLACK_REDIRECT_URI"); },
     scopes: [
       "channels:read",
       "channels:history",
@@ -25,9 +22,6 @@ export const env = {
       "users:read",
       "team:read",
     ],
-    // User scopes: where the actual silent mining happens. The installing user
-    // grants Slackmap to read everything they can see — no joining channels,
-    // no public bot announcement. Same trust model as Glean / Spinach.
     userScopes: [
       "channels:read",
       "channels:history",
@@ -38,18 +32,16 @@ export const env = {
     ],
   },
   anthropic: {
-    // Optional: if not set or set to a placeholder, the LLM router falls back
-    // to the local `claude` CLI (lib/extract/llm.ts).
-    apiKey: optional("ANTHROPIC_API_KEY") ?? "",
+    get apiKey() { return optional("ANTHROPIC_API_KEY") ?? ""; },
   },
   supabase: {
-    url: required("SUPABASE_URL"),
-    serviceKey: required("SUPABASE_SERVICE_KEY"),
+    get url() { return required("SUPABASE_URL"); },
+    get serviceKey() { return required("SUPABASE_SERVICE_KEY"); },
   },
   inngest: {
-    eventKey: optional("INNGEST_EVENT_KEY"),
-    signingKey: optional("INNGEST_SIGNING_KEY"),
+    get eventKey() { return optional("INNGEST_EVENT_KEY"); },
+    get signingKey() { return optional("INNGEST_SIGNING_KEY"); },
   },
-  encryptionKey: required("ENCRYPTION_KEY"),
-  appUrl: required("NEXT_PUBLIC_APP_URL"),
+  get encryptionKey() { return required("ENCRYPTION_KEY"); },
+  get appUrl() { return required("NEXT_PUBLIC_APP_URL"); },
 };
