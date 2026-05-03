@@ -21,6 +21,7 @@ import { extractChannelPurpose } from "../src/lib/extract/channel-purpose";
 import { extractAcronymCandidates, llmDefineTerms } from "../src/lib/extract/glossary";
 import { extractSkillsFromChannel, extractSkillsForPerson } from "../src/lib/extract/skills";
 import { extractPerson } from "../src/lib/extract/people";
+import { llmCategorize } from "../src/lib/extract/categorize";
 
 function req(name: string): string {
   const v = process.env[name];
@@ -533,6 +534,36 @@ async function main() {
   );
   for (const s of dedupedSkills) {
     await upsertSkill(s);
+  }
+
+  // Categorize all channels in one LLM batch call. Without this every channel
+  // displays as "—" in Atlas, which kills the demo.
+  console.log("\n[categorize] classifying channels into eng/product/ops/...");
+  try {
+    const allActive = await selectMany<{
+      slack_channel_id: string;
+      name: string;
+      purpose_extracted: string | null;
+    }>("channels", {
+      select: "slack_channel_id,name,purpose_extracted",
+      workspace_id: `eq.${WORKSPACE_ID}`,
+      archived: "eq.false",
+      limit: "100",
+    });
+    const cats = await llmCategorize(allActive);
+    console.log(`[categorize] ${cats.length} channels classified`);
+    for (const c of cats) {
+      await update(
+        "channels",
+        {
+          workspace_id: `eq.${WORKSPACE_ID}`,
+          slack_channel_id: `eq.${c.slack_channel_id}`,
+        },
+        { category: c.category, updated_at: new Date().toISOString() },
+      );
+    }
+  } catch (e) {
+    console.warn(`[categorize] failed: ${(e as Error).message}`);
   }
 
   // Persist people_activity rollups
