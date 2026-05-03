@@ -27,17 +27,17 @@ const WELCOME_CARDS = [
   {
     label: "1 / Connect",
     title: "Connect your tools",
-    body: "Slack and Freshdesk are wired. Click the buttons in Atlas to authorize each. More sources land soon — each enriches the same brain.",
+    body: "Open Atlas (left sidebar). At the top right of the page you'll find a Freshdesk button and an Anthropic key button — click each, paste your domain + key, and we start pulling. Slack is already connected.",
   },
   {
     label: "2 / Mine",
-    title: "Mine the channels you care about",
-    body: "Open Atlas, click Mine all public channels (or one at a time). Slackmap pulls 6 months of history and runs them through the LLM to extract purposes, glossary, skills, people.",
+    title: "Extract knowledge from each channel",
+    body: "Still on Atlas: click Mine all public channels to fan out across every channel, or click a channel row to mine just that one. We pull 6 months of history and turn it into channel purposes, a glossary, people profiles, and executable skills.",
   },
   {
     label: "3 / Export",
-    title: "Drop skills into any AI agent",
-    body: "Click Skills → Export bundle. Drop the markdown into ~/.claude/skills/ and Claude Code can run with your refund thresholds, escalation rules, deploy policies — with citations to the source thread.",
+    title: "Drop skills into Claude Code",
+    body: "Open Skills → click Export bundle (top right). Unzip into ~/.claude/skills/ and Claude Code now runs with your real refund thresholds, escalation paths, deploy rules — every step cites the Slack thread or Freshdesk ticket where it came from.",
   },
 ];
 
@@ -275,35 +275,60 @@ function Stat({ label, value, hint }: { label: string; value: number; hint?: str
   );
 }
 
+function originUrl(): string {
+  if (typeof window === "undefined") return "https://slackmap-livid.vercel.app";
+  return window.location.origin;
+}
+
 function CliSnippet({ workspaceId }: { workspaceId: string }) {
-  const cmd = `npx @slackmap/skills install ${workspaceId.slice(0, 8)}…`;
+  const url = `${originUrl()}/api/workspace/${workspaceId}/skills.zip`;
+  // Real, copy-paste-runnable command — fetches the bundle, unzips into the
+  // standard Claude Code skills directory, no npm package required.
+  const cmd = `curl -fsSL "${url}" -o /tmp/slackmap-skills.zip && \\\n  unzip -oq /tmp/slackmap-skills.zip -d ~/.claude/skills/ && \\\n  echo "Installed. Restart Claude Code to load."`;
   return (
     <div>
-      <p className="text-sm text-zinc-600 mb-2">Install your skills as Claude Code skills:</p>
+      <p className="text-sm text-zinc-600 mb-2">
+        Install your skills as Claude Code skills. Copy + paste in your terminal:
+      </p>
       <Code value={cmd} />
-      <p className="text-xs text-zinc-500 mt-2">
-        Coming soon — for now, click <span className="text-zinc-900">Download all</span> on the right.
+      <p className="text-xs text-zinc-500 mt-2 leading-relaxed">
+        Each skill is a markdown file with frontmatter (`name`, `description`,
+        `type`). Claude Code picks them up on next launch.
       </p>
     </div>
   );
 }
 
 function AgentSnippet({ workspaceId }: { workspaceId: string }) {
-  const cmd = `curl -O https://slackmap.io/api/workspace/${workspaceId}/skills.zip\nunzip skills.zip -d ~/.claude/skills/`;
+  const url = `${originUrl()}/api/workspace/${workspaceId}/skills.zip`;
+  const cmd = `# Cursor / Aider / custom agents — same bundle, different folder\ncurl -fsSL "${url}" -o skills.zip && \\\n  unzip -oq skills.zip -d ./skills/`;
   return (
     <div>
-      <p className="text-sm text-zinc-600 mb-2">For other coding agents (Cursor, Aider, etc.):</p>
+      <p className="text-sm text-zinc-600 mb-2">
+        For other coding agents — drop the bundle wherever your agent loads
+        skills (e.g. <code className="font-[var(--font-mono)]">./skills/</code>{" "}
+        for Cursor):
+      </p>
       <Code value={cmd} />
     </div>
   );
 }
 
 function ApiSnippet({ workspaceId }: { workspaceId: string }) {
-  const cmd = `GET https://slackmap.io/api/workspace/${workspaceId}/skills/<slug>\nAccept: text/markdown`;
+  const cmd = `GET ${originUrl()}/api/workspace/${workspaceId}/skills/handle-customer-refund\nAccept: text/markdown`;
   return (
     <div>
-      <p className="text-sm text-zinc-600 mb-2">Fetch a single skill as Claude-skill markdown:</p>
+      <p className="text-sm text-zinc-600 mb-2">
+        Fetch a single skill as Claude-skill markdown — useful when your agent
+        needs just-in-time guidance:
+      </p>
       <Code value={cmd} />
+      <p className="text-xs text-zinc-500 mt-2">
+        List all skills:{" "}
+        <code className="font-[var(--font-mono)]">
+          GET /api/workspace/{workspaceId.slice(0, 8)}…/skills.zip
+        </code>
+      </p>
     </div>
   );
 }
