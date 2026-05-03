@@ -12,16 +12,16 @@ type NavItem = {
   icon: ReactNode;
 };
 
-const ICON_CLASS = "size-4 shrink-0 text-zinc-400 group-hover:text-zinc-100";
+const ICON = "size-4 shrink-0 text-zinc-500 group-hover:text-zinc-900";
 
 const HomeIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className={ICON_CLASS} stroke="currentColor" strokeWidth="1.4">
+  <svg viewBox="0 0 16 16" fill="none" className={ICON} stroke="currentColor" strokeWidth="1.4">
     <path d="M2 7.5 8 2.5l6 5V13a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V7.5Z" />
     <path d="M6.5 14V9.5h3V14" />
   </svg>
 );
 const AtlasIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className={ICON_CLASS} stroke="currentColor" strokeWidth="1.4">
+  <svg viewBox="0 0 16 16" fill="none" className={ICON} stroke="currentColor" strokeWidth="1.4">
     <rect x="2" y="2" width="5" height="5" />
     <rect x="9" y="2" width="5" height="5" />
     <rect x="2" y="9" width="5" height="5" />
@@ -29,7 +29,7 @@ const AtlasIcon = () => (
   </svg>
 );
 const PeopleIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className={ICON_CLASS} stroke="currentColor" strokeWidth="1.4">
+  <svg viewBox="0 0 16 16" fill="none" className={ICON} stroke="currentColor" strokeWidth="1.4">
     <circle cx="6" cy="6" r="2.5" />
     <path d="M2 13c0-2.2 1.8-3.5 4-3.5s4 1.3 4 3.5" />
     <circle cx="11.5" cy="6.5" r="2" />
@@ -37,12 +37,12 @@ const PeopleIcon = () => (
   </svg>
 );
 const SkillsIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className={ICON_CLASS} stroke="currentColor" strokeWidth="1.4">
+  <svg viewBox="0 0 16 16" fill="none" className={ICON} stroke="currentColor" strokeWidth="1.4">
     <path d="M3 3h10v3H3zM3 7h10v3H3zM3 11h6v3H3z" />
   </svg>
 );
 const GlossaryIcon = () => (
-  <svg viewBox="0 0 16 16" fill="none" className={ICON_CLASS} stroke="currentColor" strokeWidth="1.4">
+  <svg viewBox="0 0 16 16" fill="none" className={ICON} stroke="currentColor" strokeWidth="1.4">
     <path d="M3 2h8a2 2 0 0 1 2 2v10H5a2 2 0 0 1-2-2V2Z" />
     <path d="M3 12a2 2 0 0 1 2-2h8" />
   </svg>
@@ -75,24 +75,21 @@ export function WorkspaceShell({
   }
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-100 flex font-[var(--font-mono)]">
+    <div className="min-h-screen bg-[var(--paper)] text-zinc-900 flex">
       <aside
         className={`${
-          collapsed ? "w-14" : "w-64"
-        } shrink-0 border-r border-zinc-800 flex flex-col transition-[width] duration-150`}
+          collapsed ? "w-14" : "w-60"
+        } shrink-0 border-r border-zinc-200 flex flex-col transition-[width] duration-150 bg-[var(--paper)]`}
       >
         {/* Workspace switcher */}
-        <div className="flex items-center gap-2 px-3 py-3 border-b border-zinc-800">
+        <div className="flex items-center gap-2.5 px-3 py-3 border-b border-zinc-200">
           <Link href="/" aria-label="Home" className="shrink-0">
-            <LogoMark size={28} />
+            <LogoMark size={26} />
           </Link>
           {!collapsed && (
-            <>
-              <span className="flex-1 text-sm font-medium text-zinc-100 truncate">
-                {workspaceName}
-              </span>
-              <span className="text-zinc-600 text-xs">▾</span>
-            </>
+            <span className="flex-1 text-[13px] font-medium text-zinc-900 truncate">
+              {workspaceName}
+            </span>
           )}
         </div>
 
@@ -108,9 +105,9 @@ export function WorkspaceShell({
         </div>
 
         {/* Knowledge group */}
-        <div className="px-2 mt-4">
+        <div className="px-2 mt-5">
           {!collapsed && (
-            <div className="px-2 mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500">
+            <div className="px-2 mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
               Knowledge
             </div>
           )}
@@ -128,11 +125,11 @@ export function WorkspaceShell({
           </nav>
         </div>
 
-        <div className="mt-auto border-t border-zinc-800 px-2 py-2 flex items-center justify-between">
+        <div className="mt-auto border-t border-zinc-200 px-2 py-2 flex items-center justify-between">
           {!collapsed && (
             <button
               onClick={logout}
-              className="text-[11px] uppercase tracking-wider text-zinc-500 hover:text-zinc-200 px-2 py-1"
+              className="text-[11px] uppercase tracking-wider text-zinc-500 hover:text-zinc-900 px-2 py-1 font-[var(--font-mono)]"
             >
               Disconnect
             </button>
@@ -140,19 +137,21 @@ export function WorkspaceShell({
           <button
             onClick={() => setCollapsed((v) => !v)}
             aria-label="Toggle sidebar"
-            className="ml-auto text-zinc-500 hover:text-zinc-200 size-6 flex items-center justify-center border border-zinc-800 hover:border-zinc-700"
+            className="ml-auto text-zinc-500 hover:text-zinc-900 size-6 flex items-center justify-center border border-zinc-200 hover:border-zinc-400"
           >
             {collapsed ? "›" : "‹"}
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 flex flex-col min-w-0 bg-zinc-950">
-        <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-800">
-          <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">Workspace</span>
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
+      <main className="flex-1 flex flex-col min-w-0 bg-[var(--paper)]">
+        <div className="flex items-center justify-between px-6 py-3 border-b border-zinc-200">
+          <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+            Workspace
+          </span>
+          <div className="flex items-center gap-2 text-xs text-zinc-500 font-[var(--font-mono)]">
             <span>Command Menu</span>
-            <kbd className="px-1.5 py-0.5 border border-zinc-700 text-zinc-300 text-[10px]">⌘K</kbd>
+            <kbd className="px-1.5 py-0.5 border border-zinc-300 text-zinc-700 text-[10px]">⌘K</kbd>
           </div>
         </div>
         <div className="flex-1 flex flex-col min-h-0">{children}</div>
@@ -177,10 +176,10 @@ function NavLink({
   return (
     <Link
       href={href}
-      className={`group flex items-center gap-2.5 px-2 py-1.5 text-sm transition-colors ${
+      className={`group flex items-center gap-2.5 px-2 py-1.5 text-[13px] transition-colors ${
         active
-          ? "bg-zinc-800/80 text-zinc-50"
-          : "text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/40"
+          ? "bg-zinc-100 text-zinc-900"
+          : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100/60"
       }`}
     >
       {icon}

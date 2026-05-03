@@ -15,24 +15,24 @@ type Sources = { slack: boolean; freshdesk: boolean };
 
 const WELCOME_CARDS = [
   {
-    label: "WELCOME",
+    label: "Welcome",
     title: "Slackmap is your company brain",
     body: "Connect your tools — Slack, Freshdesk, more — and Slackmap pulls knowledge out of fragmented sources, structures it, keeps it current, and turns it into executable skills your AI agents can run.",
   },
   {
-    label: "HOW IT WORKS",
+    label: "How it works",
     title: "Three views over the same brain",
     body: "Atlas shows what each Slack channel is actually used for. People shows AI-extracted profiles per teammate. Skills exports the procedures + policies as Claude-skill-compatible markdown.",
   },
   {
-    label: "MULTI-SOURCE",
+    label: "Multi-source",
     title: "Slack first, then your stack",
-    body: "Slack and Freshdesk are live. Notion, Linear, GitHub coming. Each connector enriches the same knowledge graph — skills are tagged with their source so you trace every decision back to the message or ticket that produced it.",
+    body: "Slack and Freshdesk are live. Notion, Linear, GitHub coming. Each connector enriches the same knowledge graph — every skill is traceable to the message or ticket that produced it.",
   },
   {
-    label: "INSTALL",
+    label: "Install",
     title: "Drop skills into any AI agent",
-    body: "Export the skills bundle and your Claude Code, Cursor, or custom agent acts on your company's actual rules — refund thresholds, escalation paths, deploy policies — with citations to the original source.",
+    body: "Export the skills bundle and your Claude Code, Cursor, or custom agent acts on your company's actual rules — refund thresholds, escalation paths, deploy policies.",
   },
 ];
 
@@ -53,14 +53,11 @@ export function HomeDashboard({
   const [tab, setTab] = useState<"cli" | "agent" | "api">("cli");
 
   return (
-    <div className="flex-1 px-8 py-6 overflow-auto">
-      {/* Title row */}
+    <div className="flex-1 px-8 py-8 overflow-auto">
+      {/* Title */}
       <div className="flex items-center gap-3">
-        <h1 className="text-3xl font-medium tracking-tight text-zinc-50">
-          {workspaceName}
-        </h1>
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 border border-zinc-700 text-zinc-300 text-xs">
-          <span className="size-1.5 rounded-full bg-zinc-500" />
+        <h1 className="text-3xl font-medium tracking-tight text-zinc-900">{workspaceName}</h1>
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-zinc-300 text-zinc-600 text-[11px] font-[var(--font-mono)] uppercase tracking-wider">
           Organization
         </span>
       </div>
@@ -68,13 +65,13 @@ export function HomeDashboard({
 
       <div className="mt-8 grid grid-cols-12 gap-4">
         {/* Welcome carousel */}
-        <section className="col-span-12 lg:col-span-8 border border-zinc-800 p-6 min-h-[180px] flex flex-col">
+        <section className="col-span-12 lg:col-span-8 border border-zinc-200 bg-white p-6 min-h-[200px] flex flex-col">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 px-2 py-0.5 border border-zinc-800">
+              <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] px-2 py-0.5 border border-zinc-200">
                 {WELCOME_CARDS[card].label}
               </span>
-              <span className="text-xs text-zinc-500">
+              <span className="text-xs text-zinc-500 font-[var(--font-mono)]">
                 {card + 1}/{WELCOME_CARDS.length}
               </span>
             </div>
@@ -83,28 +80,28 @@ export function HomeDashboard({
                 href="https://github.com/Jean-EmmanuelP/slackmap"
                 target="_blank"
                 rel="noreferrer"
-                className="text-xs text-zinc-400 hover:text-zinc-100 px-2 py-1"
+                className="text-xs text-zinc-500 hover:text-zinc-900 px-2 py-1"
               >
                 Docs →
               </a>
               <button
                 onClick={() => setCard((c) => (c - 1 + WELCOME_CARDS.length) % WELCOME_CARDS.length)}
-                className="size-7 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-zinc-100"
+                className="size-7 border border-zinc-200 hover:border-zinc-400 text-zinc-500 hover:text-zinc-900"
                 aria-label="Prev"
               >
                 ‹
               </button>
               <button
                 onClick={() => setCard((c) => (c + 1) % WELCOME_CARDS.length)}
-                className="size-7 border border-zinc-800 hover:border-zinc-600 text-zinc-400 hover:text-zinc-100"
+                className="size-7 border border-zinc-200 hover:border-zinc-400 text-zinc-500 hover:text-zinc-900"
                 aria-label="Next"
               >
                 ›
               </button>
             </div>
           </div>
-          <h2 className="text-xl font-medium text-zinc-100">{WELCOME_CARDS[card].title}</h2>
-          <p className="mt-2 text-sm text-zinc-400 leading-relaxed max-w-3xl">
+          <h2 className="text-xl font-medium text-zinc-900">{WELCOME_CARDS[card].title}</h2>
+          <p className="mt-2 text-sm text-zinc-600 leading-relaxed max-w-3xl">
             {WELCOME_CARDS[card].body}
           </p>
           <div className="mt-auto pt-4 flex gap-1.5">
@@ -112,15 +109,15 @@ export function HomeDashboard({
               <button
                 key={i}
                 onClick={() => setCard(i)}
-                className={`h-0.5 w-8 transition-colors ${i === card ? "bg-zinc-100" : "bg-zinc-800"}`}
+                className={`h-0.5 w-8 transition-colors ${i === card ? "bg-zinc-900" : "bg-zinc-200"}`}
               />
             ))}
           </div>
         </section>
 
         {/* Sources panel */}
-        <section className="col-span-12 lg:col-span-4 border border-zinc-800 p-6">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 mb-3">
+        <section className="col-span-12 lg:col-span-4 border border-zinc-200 bg-white p-6">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 mb-3 font-[var(--font-mono)]">
             Connected sources
           </div>
           <ul className="space-y-2.5">
@@ -137,7 +134,7 @@ export function HomeDashboard({
         </section>
 
         {/* Counts strip */}
-        <section className="col-span-12 grid grid-cols-2 md:grid-cols-4 gap-px bg-zinc-800 border border-zinc-800">
+        <section className="col-span-12 grid grid-cols-2 md:grid-cols-4 gap-px bg-zinc-200 border border-zinc-200">
           <Stat label="Channels" value={counts.channels} hint={`${counts.minedChannels} mined`} />
           <Stat label="People" value={counts.people} />
           <Stat label="Skills" value={counts.skills} hint="exportable" />
@@ -145,24 +142,24 @@ export function HomeDashboard({
         </section>
 
         {/* Install / quick start */}
-        <section className="col-span-12 lg:col-span-8 border border-zinc-800 p-6">
+        <section className="col-span-12 lg:col-span-8 border border-zinc-200 bg-white p-6">
           <div className="flex items-baseline gap-2">
-            <span className="text-zinc-500 font-mono">›_</span>
-            <h3 className="text-lg font-medium text-zinc-100">Use your skills in Claude Code</h3>
+            <span className="text-zinc-400 font-[var(--font-mono)]">›_</span>
+            <h3 className="text-lg font-medium text-zinc-900">Use your skills in Claude Code</h3>
           </div>
           <p className="mt-1 text-sm text-zinc-500">
-            Drop your extracted skills into any AI agent. They run with your company&apos;s actual rules.
+            Drop your extracted skills into any AI agent. They run with your company&apos;s rules.
           </p>
 
-          <div className="mt-4 flex border-b border-zinc-800">
+          <div className="mt-4 flex border-b border-zinc-200">
             {(["cli", "agent", "api"] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`px-4 py-2 text-xs uppercase tracking-wider ${
+                className={`px-4 py-2 text-xs uppercase tracking-wider font-[var(--font-mono)] ${
                   tab === t
-                    ? "text-zinc-100 border-b-2 border-zinc-100"
-                    : "text-zinc-500 hover:text-zinc-200"
+                    ? "text-zinc-900 border-b-2 border-zinc-900 -mb-px"
+                    : "text-zinc-500 hover:text-zinc-900"
                 }`}
               >
                 {t === "cli" ? "CLI" : t === "agent" ? "AI Agent" : "API"}
@@ -177,39 +174,43 @@ export function HomeDashboard({
           </div>
         </section>
 
-        {/* Right sidebar: Anthropic key + Skills bundle */}
+        {/* Right rail: LLM key + Skills bundle */}
         <section className="col-span-12 lg:col-span-4 space-y-4">
-          <div className="border border-zinc-800 p-5">
+          <div className="border border-zinc-200 bg-white p-5">
             <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">LLM key</span>
+              <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+                LLM key
+              </span>
               <span
                 className={`size-1.5 rounded-full ${anthropicKeySet ? "bg-emerald-500" : "bg-amber-500"}`}
               />
             </div>
-            <div className="mt-2 text-sm text-zinc-200">
+            <div className="mt-2 text-sm text-zinc-900">
               {anthropicKeySet ? "Anthropic key set" : "No Anthropic key yet"}
             </div>
-            <div className="mt-1 text-xs text-zinc-500">
+            <div className="mt-1 text-xs text-zinc-500 leading-relaxed">
               {anthropicKeySet
                 ? "Skills + people extraction will run automatically when you mine channels."
                 : "Add your sk-ant-... in the Atlas toolbar to enable LLM extraction."}
             </div>
           </div>
 
-          <div className="border border-zinc-800 p-5">
+          <div className="border border-zinc-200 bg-white p-5">
             <div className="flex items-center justify-between">
-              <span className="text-xs uppercase tracking-[0.18em] text-zinc-500">Skills bundle</span>
+              <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+                Skills bundle
+              </span>
               <a
                 href={`/api/workspace/${workspaceId}/skills.zip`}
-                className="text-xs text-zinc-300 hover:text-zinc-50"
+                className="text-xs text-zinc-700 hover:text-zinc-900 underline underline-offset-2"
               >
                 Download all
               </a>
             </div>
-            <div className="mt-2 text-sm text-zinc-200">
-              {counts.skills} skills · ready to drop into Claude
+            <div className="mt-2 text-sm text-zinc-900">
+              {counts.skills} skills · ready for Claude
             </div>
-            <div className="mt-1 text-xs text-zinc-500">
+            <div className="mt-1 text-xs text-zinc-500 leading-relaxed">
               ~/.claude/skills/&lt;workspace&gt;/ — restart Claude Code to load.
             </div>
           </div>
@@ -234,15 +235,19 @@ function SourceRow({
     <li className="flex items-center gap-2 text-sm">
       <span
         className={`size-1.5 rounded-full ${
-          connected ? "bg-emerald-500" : comingSoon ? "bg-zinc-700" : "bg-zinc-600"
+          connected ? "bg-emerald-500" : comingSoon ? "bg-zinc-300" : "bg-zinc-400"
         }`}
       />
-      <span className={connected ? "text-zinc-100" : "text-zinc-500"}>{name}</span>
+      <span className={connected ? "text-zinc-900" : "text-zinc-500"}>{name}</span>
       {connected && count !== undefined && (
-        <span className="ml-auto text-xs text-zinc-500 tabular-nums">{count} skills</span>
+        <span className="ml-auto text-xs text-zinc-500 tabular-nums font-[var(--font-mono)]">
+          {count} skills
+        </span>
       )}
       {comingSoon && (
-        <span className="ml-auto text-[10px] uppercase tracking-wider text-zinc-600">soon</span>
+        <span className="ml-auto text-[10px] uppercase tracking-wider text-zinc-400 font-[var(--font-mono)]">
+          soon
+        </span>
       )}
     </li>
   );
@@ -250,9 +255,11 @@ function SourceRow({
 
 function Stat({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
-    <div className="bg-zinc-950 px-5 py-4">
-      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500">{label}</div>
-      <div className="mt-1 text-2xl font-medium text-zinc-50 tabular-nums">{value}</div>
+    <div className="bg-white px-5 py-4">
+      <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+        {label}
+      </div>
+      <div className="mt-1 text-2xl font-medium text-zinc-900 tabular-nums">{value}</div>
       {hint && <div className="text-xs text-zinc-500">{hint}</div>}
     </div>
   );
@@ -262,10 +269,10 @@ function CliSnippet({ workspaceId }: { workspaceId: string }) {
   const cmd = `npx @slackmap/skills install ${workspaceId.slice(0, 8)}…`;
   return (
     <div>
-      <p className="text-sm text-zinc-400 mb-2">Install your skills as Claude Code skills:</p>
+      <p className="text-sm text-zinc-600 mb-2">Install your skills as Claude Code skills:</p>
       <Code value={cmd} />
       <p className="text-xs text-zinc-500 mt-2">
-        Coming soon — for now, click <span className="text-zinc-300">Download all</span> on the right.
+        Coming soon — for now, click <span className="text-zinc-900">Download all</span> on the right.
       </p>
     </div>
   );
@@ -275,7 +282,7 @@ function AgentSnippet({ workspaceId }: { workspaceId: string }) {
   const cmd = `curl -O https://slackmap.io/api/workspace/${workspaceId}/skills.zip\nunzip skills.zip -d ~/.claude/skills/`;
   return (
     <div>
-      <p className="text-sm text-zinc-400 mb-2">For other coding agents (Cursor, Aider, etc.):</p>
+      <p className="text-sm text-zinc-600 mb-2">For other coding agents (Cursor, Aider, etc.):</p>
       <Code value={cmd} />
     </div>
   );
@@ -285,7 +292,7 @@ function ApiSnippet({ workspaceId }: { workspaceId: string }) {
   const cmd = `GET https://slackmap.io/api/workspace/${workspaceId}/skills/<slug>\nAccept: text/markdown`;
   return (
     <div>
-      <p className="text-sm text-zinc-400 mb-2">Fetch a single skill as Claude-skill markdown:</p>
+      <p className="text-sm text-zinc-600 mb-2">Fetch a single skill as Claude-skill markdown:</p>
       <Code value={cmd} />
     </div>
   );
@@ -293,11 +300,13 @@ function ApiSnippet({ workspaceId }: { workspaceId: string }) {
 
 function Code({ value }: { value: string }) {
   return (
-    <div className="border border-zinc-800 bg-zinc-900/40 px-4 py-3 flex items-start gap-3">
-      <pre className="flex-1 text-sm text-zinc-200 whitespace-pre overflow-x-auto">{value}</pre>
+    <div className="border border-zinc-200 bg-zinc-50 px-4 py-3 flex items-start gap-3">
+      <pre className="flex-1 text-sm text-zinc-900 whitespace-pre overflow-x-auto font-[var(--font-mono)]">
+        {value}
+      </pre>
       <button
         onClick={() => navigator.clipboard.writeText(value)}
-        className="text-xs text-zinc-500 hover:text-zinc-100 px-2 py-1 border border-zinc-800"
+        className="text-xs text-zinc-500 hover:text-zinc-900 px-2 py-1 border border-zinc-200 font-[var(--font-mono)] uppercase tracking-wider"
       >
         Copy
       </button>

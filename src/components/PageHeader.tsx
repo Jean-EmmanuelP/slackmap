@@ -1,5 +1,4 @@
-// Title + subtitle row at the top of each workspace page. Square corners,
-// monospaced label/count, no decorative serif — matches the Nia-style shell.
+// Title row at the top of each workspace page. Light, minimal, square.
 
 export function PageHeader({
   title,
@@ -13,10 +12,10 @@ export function PageHeader({
   action?: React.ReactNode;
 }) {
   return (
-    <header className="px-8 py-6 border-b border-zinc-800 bg-zinc-950">
+    <header className="px-8 py-6 border-b border-zinc-200 bg-[var(--paper)]">
       <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-medium tracking-tight text-zinc-50">
+          <h1 className="text-2xl md:text-3xl font-medium tracking-tight text-zinc-900">
             {title}
           </h1>
           <p className="mt-1 text-sm text-zinc-500 max-w-2xl leading-relaxed">{subtitle}</p>
@@ -24,8 +23,8 @@ export function PageHeader({
         <div className="flex items-center gap-3 shrink-0">
           {count && (
             <div className="text-right">
-              <div className="text-2xl font-medium text-zinc-50 tabular-nums">{count.value}</div>
-              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 mt-0.5">
+              <div className="text-2xl font-medium text-zinc-900 tabular-nums">{count.value}</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 mt-0.5 font-[var(--font-mono)]">
                 {count.label}
               </div>
             </div>
