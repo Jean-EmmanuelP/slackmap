@@ -27,56 +27,58 @@ export function GlossaryTable({
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="px-6 py-4 flex items-center gap-3 border-b border-zinc-200">
+      <div className="px-6 py-3 flex items-center gap-3 border-b border-zinc-200 flex-wrap">
         <input
           type="search"
           placeholder="Search terms or definitions…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="flex-1 max-w-md px-3 py-2 rounded-md bg-white border border-zinc-200 text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-400"
+          className="flex-1 max-w-md px-3 py-2 bg-transparent border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
         />
-        <div className="flex gap-1">
-          {CATEGORIES.map((c) => (
+        <div className="flex border border-zinc-300">
+          {CATEGORIES.map((c, i) => (
             <button
               key={c}
               onClick={() => setCat(c)}
-              className={`px-3 py-1.5 rounded-full text-xs transition-colors ${
+              className={`px-3 py-1.5 text-[11px] uppercase tracking-wider font-[var(--font-mono)] transition-colors ${
+                i > 0 ? "border-l border-zinc-300" : ""
+              } ${
                 cat === c
-                  ? "bg-zinc-900 text-white"
-                  : "bg-white border border-zinc-200 text-zinc-600 hover:bg-zinc-100"
+                  ? "bg-zinc-900 text-[var(--paper)]"
+                  : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
               }`}
             >
               {c}
             </button>
           ))}
         </div>
-        <span className="ml-auto text-xs text-zinc-500">{filtered.length} entries</span>
+        <span className="ml-auto text-xs text-zinc-500 font-[var(--font-mono)]">{filtered.length} entries</span>
       </div>
 
-      <div className="flex-1 overflow-auto bg-white">
+      <div className="flex-1 overflow-auto">
         <table className="w-full text-sm">
-          <thead className="bg-zinc-50 sticky top-0 border-b border-zinc-200">
-            <tr className="text-left text-xs uppercase text-zinc-500">
-              <th className="px-6 py-3 font-medium">Term</th>
-              <th className="px-6 py-3 font-medium">Definition</th>
-              <th className="px-6 py-3 font-medium">Source</th>
-              <th className="px-6 py-3 font-medium">Category</th>
-              <th className="px-6 py-3 font-medium text-right">Occurrences</th>
-              <th className="px-6 py-3 font-medium">First seen</th>
+          <thead className="sticky top-0 z-10 bg-[var(--paper)] border-b border-zinc-200">
+            <tr className="text-left text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+              <th className="px-6 py-2.5 font-medium">Term</th>
+              <th className="px-6 py-2.5 font-medium">Definition</th>
+              <th className="px-6 py-2.5 font-medium">Source</th>
+              <th className="px-6 py-2.5 font-medium">Category</th>
+              <th className="px-6 py-2.5 font-medium text-right">Occurrences</th>
+              <th className="px-6 py-2.5 font-medium">First seen</th>
             </tr>
           </thead>
           <tbody>
             {filtered.map((e) => (
-              <tr key={e.id} className="border-t border-zinc-100 hover:bg-zinc-50">
-                <td className="px-6 py-3 font-mono text-zinc-900">{e.term}</td>
+              <tr key={e.id} className="border-t border-zinc-200 hover:bg-zinc-100/50">
+                <td className="px-6 py-3 font-[var(--font-mono)] text-zinc-900">{e.term}</td>
                 <td className="px-6 py-3 text-zinc-700">{e.definition}</td>
                 <td className="px-6 py-3"><SourceBadge source={e.source} /></td>
                 <td className="px-6 py-3">
-                  <span className="inline-block px-2 py-0.5 rounded-md bg-zinc-100 text-zinc-700 text-xs">
+                  <span className="inline-block px-2 py-0.5 border border-zinc-300 text-[10px] uppercase tracking-wider text-zinc-600 font-[var(--font-mono)]">
                     {e.category ?? "—"}
                   </span>
                 </td>
-                <td className="px-6 py-3 text-right text-zinc-500 tabular-nums">
+                <td className="px-6 py-3 text-right text-zinc-500 tabular-nums font-[var(--font-mono)]">
                   {e.occurrences}
                 </td>
                 <td className="px-6 py-3 text-zinc-500">
@@ -85,7 +87,7 @@ export function GlossaryTable({
                       href={`https://${teamDomain}.slack.com/archives/${e.first_seen_channel_id}/p${e.first_seen_ts.replace(".", "")}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-700 hover:text-blue-900"
+                      className="text-zinc-700 hover:text-zinc-900 underline underline-offset-2 font-[var(--font-mono)]"
                     >
                       View →
                     </a>
@@ -97,7 +99,7 @@ export function GlossaryTable({
             ))}
             {filtered.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-zinc-400">
+                <td colSpan={6} className="px-6 py-12 text-center text-zinc-500">
                   No entries.
                 </td>
               </tr>

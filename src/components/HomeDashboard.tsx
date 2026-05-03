@@ -15,24 +15,19 @@ type Sources = { slack: boolean; freshdesk: boolean };
 
 const WELCOME_CARDS = [
   {
-    label: "Welcome",
-    title: "Slackmap is your company brain",
-    body: "Connect your tools — Slack, Freshdesk, more — and Slackmap pulls knowledge out of fragmented sources, structures it, keeps it current, and turns it into executable skills your AI agents can run.",
+    label: "1 / Connect",
+    title: "Connect your tools",
+    body: "Slack and Freshdesk are wired. Click the buttons in Atlas to authorize each. More sources land soon — each enriches the same brain.",
   },
   {
-    label: "How it works",
-    title: "Three views over the same brain",
-    body: "Atlas shows what each Slack channel is actually used for. People shows AI-extracted profiles per teammate. Skills exports the procedures + policies as Claude-skill-compatible markdown.",
+    label: "2 / Mine",
+    title: "Mine the channels you care about",
+    body: "Open Atlas, click Mine all public channels (or one at a time). Slackmap pulls 6 months of history and runs them through the LLM to extract purposes, glossary, skills, people.",
   },
   {
-    label: "Multi-source",
-    title: "Slack first, then your stack",
-    body: "Slack and Freshdesk are live. Notion, Linear, GitHub coming. Each connector enriches the same knowledge graph — every skill is traceable to the message or ticket that produced it.",
-  },
-  {
-    label: "Install",
+    label: "3 / Export",
     title: "Drop skills into any AI agent",
-    body: "Export the skills bundle and your Claude Code, Cursor, or custom agent acts on your company's actual rules — refund thresholds, escalation paths, deploy policies.",
+    body: "Click Skills → Export bundle. Drop the markdown into ~/.claude/skills/ and Claude Code can run with your refund thresholds, escalation rules, deploy policies — with citations to the source thread.",
   },
 ];
 
@@ -76,24 +71,16 @@ export function HomeDashboard({
               </span>
             </div>
             <div className="flex items-center gap-1">
-              <a
-                href="https://github.com/Jean-EmmanuelP/slackmap"
-                target="_blank"
-                rel="noreferrer"
-                className="text-xs text-zinc-500 hover:text-zinc-900 px-2 py-1"
-              >
-                Docs →
-              </a>
               <button
                 onClick={() => setCard((c) => (c - 1 + WELCOME_CARDS.length) % WELCOME_CARDS.length)}
-                className="size-7 border border-zinc-200 hover:border-zinc-400 text-zinc-500 hover:text-zinc-900"
+                className="size-7 border border-zinc-300 hover:border-zinc-500 text-zinc-500 hover:text-zinc-900"
                 aria-label="Prev"
               >
                 ‹
               </button>
               <button
                 onClick={() => setCard((c) => (c + 1) % WELCOME_CARDS.length)}
-                className="size-7 border border-zinc-200 hover:border-zinc-400 text-zinc-500 hover:text-zinc-900"
+                className="size-7 border border-zinc-300 hover:border-zinc-500 text-zinc-500 hover:text-zinc-900"
                 aria-label="Next"
               >
                 ›

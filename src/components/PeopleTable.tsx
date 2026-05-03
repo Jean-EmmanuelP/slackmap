@@ -42,16 +42,16 @@ export function PeopleTable({
           placeholder="Search name, role, tool, expertise…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="flex-1 max-w-md px-3 py-2 rounded-md bg-white border border-zinc-200 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-600"
+          className="flex-1 max-w-md px-3 py-2 bg-transparent border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
         />
         <button
           onClick={refresh}
           disabled={busy}
-          className="ml-auto px-3 py-1.5 rounded-md text-xs bg-blue-500/15 text-blue-300 border border-blue-500/30 hover:bg-blue-500/25 disabled:opacity-50"
+          className="ml-auto px-3 py-1.5 text-[11px] uppercase tracking-wider font-[var(--font-mono)] border border-zinc-300 hover:border-zinc-500 hover:bg-zinc-100 text-zinc-700 hover:text-zinc-900 disabled:opacity-50"
         >
-          {busy ? "Queueing…" : "🔄 Re-extract people"}
+          {busy ? "Queueing…" : "Re-extract people"}
         </button>
-        <span className="text-xs text-zinc-500">{filtered.length} people</span>
+        <span className="text-xs text-zinc-500 font-[var(--font-mono)]">{filtered.length} people</span>
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -88,11 +88,11 @@ export function PeopleTable({
                     <p className="text-sm text-zinc-600 mt-0.5 truncate">{p.summary}</p>
                   )}
                   {(p.tools.length > 0 || p.expertise.length > 0) && (
-                    <div className="flex flex-wrap gap-1 mt-2">
+                    <div className="flex flex-wrap gap-1.5 mt-2">
                       {p.tools.slice(0, 5).map((t) => (
                         <span
                           key={t}
-                          className="px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-300 text-xs"
+                          className="px-2 py-0.5 border border-zinc-300 text-zinc-700 text-[11px] font-[var(--font-mono)]"
                         >
                           {t}
                         </span>
@@ -100,7 +100,7 @@ export function PeopleTable({
                       {p.expertise.slice(0, 4).map((e) => (
                         <span
                           key={e}
-                          className="px-2 py-0.5 rounded-md bg-purple-500/10 text-purple-300 text-xs"
+                          className="px-2 py-0.5 border border-zinc-400 text-zinc-800 text-[11px] font-[var(--font-mono)]"
                         >
                           {e}
                         </span>
@@ -205,7 +205,7 @@ function PersonPanel({
             </h2>
             {person.title && <p className="text-sm text-zinc-600">{person.title}</p>}
             {person.role_extracted && (
-              <p className="text-xs uppercase tracking-wide text-blue-400 mt-1">
+              <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mt-1">
                 {person.role_extracted}
               </p>
             )}
@@ -218,35 +218,35 @@ function PersonPanel({
             <div className="flex flex-wrap gap-2">
               <button
                 onClick={() => setShowHintInput(true)}
-                className="text-xs px-3 py-1.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/30 hover:bg-blue-500/25"
+                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:border-zinc-500 hover:bg-zinc-100"
               >
-                ✏️ Re-extract with context
+                Re-extract with context
               </button>
               <button
                 onClick={reExtract}
                 disabled={busy !== null}
-                className="text-xs px-3 py-1.5 rounded-md bg-zinc-200 text-zinc-700 border border-zinc-700 hover:bg-zinc-700 disabled:opacity-50"
+                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:border-zinc-500 hover:bg-zinc-100 disabled:opacity-50"
               >
-                🔄 Re-extract
+                Re-extract
               </button>
               <button
                 onClick={markFormer}
                 disabled={busy !== null}
-                className="text-xs px-3 py-1.5 rounded-md bg-amber-500/15 text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 disabled:opacity-50"
+                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:border-zinc-500 hover:bg-zinc-100 disabled:opacity-50"
               >
                 Mark as former
               </button>
               <button
                 onClick={del}
                 disabled={busy !== null}
-                className="text-xs px-3 py-1.5 rounded-md bg-rose-500/15 text-rose-300 border border-rose-500/30 hover:bg-rose-500/25 disabled:opacity-50"
+                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:border-zinc-900 hover:text-zinc-900 disabled:opacity-50"
               >
                 Delete
               </button>
             </div>
           ) : (
             <div className="space-y-2">
-              <label className="text-xs uppercase tracking-wide text-zinc-500">
+              <label className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
                 Tell the AI what it got wrong (or what context to use)
               </label>
               <textarea
@@ -254,13 +254,13 @@ function PersonPanel({
                 onChange={(e) => setHint(e.target.value)}
                 placeholder="ex: Marc is actually our Head of Design, not an engineer. He uses Figma daily and runs design reviews on Tuesdays."
                 rows={4}
-                className="w-full px-3 py-2 rounded-md bg-white border border-zinc-700 text-sm text-zinc-900 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-y"
+                className="w-full px-3 py-2 bg-transparent border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-700 resize-y"
               />
               <div className="flex gap-2">
                 <button
                   onClick={reExtract}
                   disabled={busy !== null || !hint.trim()}
-                  className="text-xs px-3 py-1.5 rounded-md bg-blue-500 text-white hover:bg-blue-400 disabled:opacity-50"
+                  className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800 disabled:opacity-50"
                 >
                   Re-extract with this context
                 </button>
@@ -269,14 +269,14 @@ function PersonPanel({
                     setShowHintInput(false);
                     setHint("");
                   }}
-                  className="text-xs px-3 py-1.5 rounded-md text-zinc-600 hover:text-zinc-800"
+                  className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 text-zinc-500 hover:text-zinc-900"
                 >
                   Cancel
                 </button>
               </div>
             </div>
           )}
-          {msg && <p className="text-xs text-emerald-400 mt-2">{msg}</p>}
+          {msg && <p className="text-xs text-zinc-700 font-[var(--font-mono)] mt-2">{msg}</p>}
         </div>
 
         {person.summary && (
@@ -287,9 +287,9 @@ function PersonPanel({
 
         {person.tools.length > 0 && (
           <Section title="Tools">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {person.tools.map((t) => (
-                <span key={t} className="px-2 py-1 rounded-md bg-blue-500/15 text-blue-300 text-xs">
+                <span key={t} className="px-2 py-0.5 border border-zinc-300 text-zinc-700 text-[11px] font-[var(--font-mono)]">
                   {t}
                 </span>
               ))}
@@ -299,9 +299,9 @@ function PersonPanel({
 
         {person.expertise.length > 0 && (
           <Section title="Expertise">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {person.expertise.map((e) => (
-                <span key={e} className="px-2 py-1 rounded-md bg-purple-500/15 text-purple-300 text-xs">
+                <span key={e} className="px-2 py-0.5 border border-zinc-400 text-zinc-800 text-[11px] font-[var(--font-mono)]">
                   {e}
                 </span>
               ))}
