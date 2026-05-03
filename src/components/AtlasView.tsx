@@ -16,32 +16,66 @@ export function AtlasView({
   workspaceId: string;
 }) {
   const [view, setView] = useState<"list" | "graph">("list");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string | null>(null);
+
+  async function mineAllPublic() {
+    setBusy(true);
+    setResult(null);
+    try {
+      const res = await fetch(`/api/workspace/${workspaceId}/mine-all-public`, { method: "POST" });
+      const data = await res.json();
+      setResult(`Queued ${data.queuedCount ?? 0} public channels`);
+      setTimeout(() => window.location.reload(), 2500);
+    } catch {
+      setResult("Failed");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="flex-1 flex flex-col">
-      <div className="px-6 py-2 flex items-center gap-2 border-b border-zinc-800">
-        <span className="text-xs uppercase tracking-wider text-zinc-500 mr-2">View</span>
+      <div className="px-6 py-3 flex items-center gap-3 border-b border-zinc-200 flex-wrap">
         <button
-          onClick={() => setView("list")}
-          className={`px-3 py-1 rounded-md text-xs ${
-            view === "list" ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
-          }`}
+          onClick={mineAllPublic}
+          disabled={busy}
+          className="text-xs font-medium px-4 py-1.5 rounded-full bg-zinc-900 text-white hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-wait"
         >
-          📋 List
+          {busy ? "Queueing…" : "Mine all public channels"}
         </button>
-        <button
-          onClick={() => setView("graph")}
-          className={`px-3 py-1 rounded-md text-xs ${
-            view === "graph" ? "bg-zinc-100 text-zinc-900" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          🗺 Graph
-        </button>
+        <span className="text-xs text-zinc-500">
+          Click any channel to mine it individually. Private channels read with
+          your user identity (silent).
+        </span>
+        {result && <span className="text-xs text-emerald-700">{result}</span>}
+        <div className="ml-auto flex items-center gap-1 rounded-full bg-zinc-100 p-0.5">
+          <button
+            onClick={() => setView("list")}
+            className={`px-3.5 py-1 rounded-full text-xs font-medium transition-colors ${
+              view === "list"
+                ? "bg-white text-zinc-900 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-900"
+            }`}
+          >
+            List
+          </button>
+          <button
+            onClick={() => setView("graph")}
+            className={`px-3.5 py-1 rounded-full text-xs font-medium transition-colors ${
+              view === "graph"
+                ? "bg-white text-zinc-900 shadow-sm"
+                : "text-zinc-500 hover:text-zinc-900"
+            }`}
+          >
+            Graph
+          </button>
+        </div>
       </div>
       {view === "list" ? (
         <ChannelList channels={channels} workspaceId={workspaceId} teamDomain={teamDomain} />
       ) : (
-        <div className="flex-1 min-h-[600px] flex">
+        <div className="flex-1 min-h-[600px] flex bg-white">
           <ChannelGraph channels={channels} workspaceId={workspaceId} teamDomain={teamDomain} />
         </div>
       )}

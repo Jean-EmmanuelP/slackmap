@@ -3,7 +3,6 @@ import { db, listChannels } from "@/lib/db";
 import { LiveStatus } from "@/components/LiveStatus";
 import { Nav } from "@/components/Nav";
 import { AtlasView } from "@/components/AtlasView";
-import { AtlasToolbar } from "@/components/AtlasToolbar";
 import { MiningProgress } from "@/components/MiningProgress";
 import { PageHeader } from "@/components/PageHeader";
 
@@ -44,7 +43,6 @@ export default async function AtlasPage({
         lastEventAt={workspace.last_event_received_at as string | null}
       />
       <MiningProgress workspaceId={workspace.id as string} />
-      <AtlasToolbar workspaceId={workspace.id as string} />
       {channels.length === 0 ? (
         <div className="flex-1 flex items-center justify-center text-zinc-500">
           No channels yet. Connect Slack to populate.
