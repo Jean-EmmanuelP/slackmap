@@ -1,35 +1,37 @@
-// Section header for each internal page (Atlas / People / Glossary / Skills).
-// Serif title + sans-serif subtitle — establishes the "value add" immediately
-// instead of dropping the user into a raw table.
+// Title + subtitle row at the top of each workspace page. Square corners,
+// monospaced label/count, no decorative serif — matches the Nia-style shell.
 
 export function PageHeader({
   title,
   subtitle,
   count,
+  action,
 }: {
   title: string;
   subtitle: string;
   count?: { value: number | string; label: string };
+  action?: React.ReactNode;
 }) {
   return (
-    <header className="px-8 pt-10 pb-6 border-b border-zinc-200 bg-[var(--paper)]">
-      <div className="max-w-6xl mx-auto flex items-end justify-between gap-6">
+    <header className="px-8 py-6 border-b border-zinc-800 bg-zinc-950">
+      <div className="flex items-start justify-between gap-6">
         <div>
-          <h1 className="font-[var(--font-serif)] text-3xl md:text-4xl tracking-tight text-zinc-900 leading-[1.05]">
+          <h1 className="text-2xl md:text-3xl font-medium tracking-tight text-zinc-50">
             {title}
           </h1>
-          <p className="mt-2 text-sm text-zinc-500 max-w-xl leading-relaxed">{subtitle}</p>
+          <p className="mt-1 text-sm text-zinc-500 max-w-2xl leading-relaxed">{subtitle}</p>
         </div>
-        {count && (
-          <div className="text-right shrink-0">
-            <div className="font-[var(--font-serif)] text-3xl tracking-tight text-zinc-900 tabular-nums">
-              {count.value}
+        <div className="flex items-center gap-3 shrink-0">
+          {count && (
+            <div className="text-right">
+              <div className="text-2xl font-medium text-zinc-50 tabular-nums">{count.value}</div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 mt-0.5">
+                {count.label}
+              </div>
             </div>
-            <div className="text-xs uppercase tracking-wider text-zinc-500 mt-0.5">
-              {count.label}
-            </div>
-          </div>
-        )}
+          )}
+          {action}
+        </div>
       </div>
     </header>
   );

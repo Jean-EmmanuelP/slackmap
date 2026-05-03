@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db, listChannels } from "@/lib/db";
 import { LiveStatus } from "@/components/LiveStatus";
-import { Nav } from "@/components/Nav";
+import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { AtlasView } from "@/components/AtlasView";
 import { MiningProgress } from "@/components/MiningProgress";
 import { PageHeader } from "@/components/PageHeader";
@@ -29,10 +29,12 @@ export default async function AtlasPage({
   const channels = await listChannels(workspace.id as string);
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] text-zinc-900 flex flex-col">
-      <Nav workspaceName={workspace.slack_team_name as string} workspaceId={workspace.id as string} />
+    <WorkspaceShell
+      workspaceName={workspace.slack_team_name as string}
+      workspaceId={workspace.id as string}
+    >
       <PageHeader
-        title="Channel atlas"
+        title="Atlas"
         subtitle="What each Slack channel is actually used for, inferred from observed activity. Click a channel to mine its purpose, contributors, and message volume."
         count={{ value: channels.filter((c) => !c.archived).length, label: "channels" }}
       />
@@ -54,6 +56,6 @@ export default async function AtlasPage({
           workspaceId={workspace.id as string}
         />
       )}
-    </div>
+    </WorkspaceShell>
   );
 }

@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db, listPeople } from "@/lib/db";
 import { LiveStatus } from "@/components/LiveStatus";
-import { Nav } from "@/components/Nav";
+import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { PeopleTable } from "@/components/PeopleTable";
 import { MiningProgress } from "@/components/MiningProgress";
 import { PageHeader } from "@/components/PageHeader";
@@ -28,11 +28,13 @@ export default async function PeoplePage({
   const people = await listPeople(workspace.id as string);
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] text-zinc-900 flex flex-col">
-      <Nav workspaceName={workspace.slack_team_name as string} workspaceId={workspace.id as string} />
+    <WorkspaceShell
+      workspaceName={workspace.slack_team_name as string}
+      workspaceId={workspace.id as string}
+    >
       <PageHeader
         title="People"
-        subtitle="AI-extracted profile per teammate — role, tools, expertise — inferred from observed Slack behavior. Click a person to see their top channels and re-extract with corrective context."
+        subtitle="AI-extracted profile per teammate — role, tools, expertise — inferred from observed Slack behavior."
         count={{ value: people.length, label: "profiles" }}
       />
       <LiveStatus
@@ -43,6 +45,6 @@ export default async function PeoplePage({
       />
       <MiningProgress workspaceId={workspace.id as string} />
       <PeopleTable people={people} workspaceId={workspace.id as string} />
-    </div>
+    </WorkspaceShell>
   );
 }

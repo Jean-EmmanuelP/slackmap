@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db, listSkills } from "@/lib/db";
 import { LiveStatus } from "@/components/LiveStatus";
-import { Nav } from "@/components/Nav";
+import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { SkillsTable } from "@/components/SkillsTable";
 import { MiningProgress } from "@/components/MiningProgress";
 import { PageHeader } from "@/components/PageHeader";
@@ -29,11 +29,13 @@ export default async function SkillsPage({
   const skills = await listSkills(workspace.id as string);
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] text-zinc-900 flex flex-col">
-      <Nav workspaceName={workspace.slack_team_name as string} workspaceId={workspace.id as string} />
+    <WorkspaceShell
+      workspaceName={workspace.slack_team_name as string}
+      workspaceId={workspace.id as string}
+    >
       <PageHeader
-        title="Executable skills"
-        subtitle="Procedures, policies, and decisions extracted as Claude-skill-compatible markdown. Drop them in any AI agent and it can act with your company's rules — with citations back to Slack."
+        title="Skills"
+        subtitle="Procedures, policies, and decisions extracted as Claude-skill-compatible markdown. Drop them in any AI agent and it can act with your company's rules."
         count={{ value: skills.length, label: "skills" }}
       />
       <LiveStatus
@@ -48,6 +50,6 @@ export default async function SkillsPage({
         workspaceId={workspace.id as string}
         teamDomain={(workspace.slack_team_domain as string | null) ?? null}
       />
-    </div>
+    </WorkspaceShell>
   );
 }

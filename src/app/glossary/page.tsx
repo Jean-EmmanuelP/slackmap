@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { db, listGlossary } from "@/lib/db";
 import { LiveStatus } from "@/components/LiveStatus";
-import { Nav } from "@/components/Nav";
+import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { GlossaryTable } from "@/components/GlossaryTable";
 import { MiningProgress } from "@/components/MiningProgress";
 import { PageHeader } from "@/components/PageHeader";
@@ -29,11 +29,13 @@ export default async function GlossaryPage({
   const entries = await listGlossary(workspace.id as string);
 
   return (
-    <div className="min-h-screen bg-[var(--paper)] text-zinc-900 flex flex-col">
-      <Nav workspaceName={workspace.slack_team_name as string} workspaceId={workspace.id as string} />
+    <WorkspaceShell
+      workspaceName={workspace.slack_team_name as string}
+      workspaceId={workspace.id as string}
+    >
       <PageHeader
         title="Glossary"
-        subtitle="Every internal acronym and product name, defined from context with a deeplink to the first thread where it appeared. New terms get added live as people use them."
+        subtitle="Every internal acronym and product name, defined from context with a deeplink to the first thread where it appeared."
         count={{ value: entries.length, label: "terms" }}
       />
       <LiveStatus
@@ -47,6 +49,6 @@ export default async function GlossaryPage({
         entries={entries}
         teamDomain={(workspace.slack_team_domain as string | null) ?? null}
       />
-    </div>
+    </WorkspaceShell>
   );
 }

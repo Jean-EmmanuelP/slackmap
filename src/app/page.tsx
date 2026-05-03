@@ -18,7 +18,7 @@ export default async function Home({
       .select("id")
       .eq("id", wsCookie)
       .maybeSingle();
-    if (existing) redirect(`/atlas?ws=${wsCookie}`);
+    if (existing) redirect(`/home?ws=${wsCookie}`);
   }
 
   const { error } = await searchParams;
