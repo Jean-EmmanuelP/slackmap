@@ -11,17 +11,56 @@ export async function GET(
   const { id } = await params;
   const { data, error } = await db()
     .from("workspaces")
-    .select("freshdesk_domain, freshdesk_connected_at, freshdesk_status, freshdesk_error")
+    .select(
+      "freshdesk_domain, freshdesk_connected_at, freshdesk_status, freshdesk_error, updated_at",
+    )
     .eq("id", id)
     .maybeSingle();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+  // Counts of skills/glossary derived from Freshdesk for this workspace.
+  // We do this in parallel with a `count: 'exact', head: true` trick so we don't
+  // ship rows back over the wire.
+  const [skillsRes, glossaryRes, lastSkillRes] = await Promise.all([
+    db()
+      .from("skills")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", id)
+      .eq("source", "freshdesk"),
+    db()
+      .from("glossary_entries")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", id)
+      .eq("source", "freshdesk"),
+    db()
+      .from("skills")
+      .select("last_observed_at")
+      .eq("workspace_id", id)
+      .eq("source", "freshdesk")
+      .order("last_observed_at", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const skillsCount = skillsRes.count ?? 0;
+  const glossaryCount = glossaryRes.count ?? 0;
+  // Prefer the timestamp of the most recent extracted skill; fall back to the
+  // workspace's updated_at (covers the case where status moved to done but no
+  // skills were extracted).
+  const lastRunAt =
+    (lastSkillRes.data?.last_observed_at as string | null | undefined) ??
+    (data.freshdesk_status === "done" ? (data.updated_at as string | null) : null);
+
   return NextResponse.json({
     connected: !!data.freshdesk_domain,
     domain: data.freshdesk_domain,
     connectedAt: data.freshdesk_connected_at,
     status: data.freshdesk_status,
     error: data.freshdesk_error,
+    lastRunAt,
+    skillsCount,
+    glossaryCount,
   });
 }
 
