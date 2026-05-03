@@ -63,13 +63,14 @@ Output JSON only — an array, one entry per input candidate, in the same order:
   {
     "skip": false,
     "type": "process" | "policy" | "decision" | "escalation",
-    "slug": "kebab-case-id",            // e.g. "handle-refund-request"
+    "domain": "engineering" | "product" | "support" | "ops" | "sales" | "marketing" | "leadership" | "other",
+    "slug": "kebab-case-id",
     "title": "Title in natural english (max 60 chars)",
     "trigger": "When this skill should activate (1 sentence)",
     "steps_md": "Numbered markdown list of steps. Be specific. Use real names if mentioned.",
     "decision_criteria": "If/then logic. null if N/A.",
     "escalation": "When to escalate, to whom. null if N/A.",
-    "supporting_quotes": ["short quote 1", "short quote 2"]   // 1-3 supporting snippets
+    "supporting_quotes": ["short quote 1", "short quote 2"]
   },
   { "skip": true },
   ...
@@ -84,6 +85,7 @@ Hard rules:
 
 export type ExtractedSkill = {
   type: "process" | "policy" | "decision" | "escalation";
+  domain: string;
   slug: string;
   title: string;
   trigger: string;
@@ -144,6 +146,7 @@ export async function extractSkillsFromChannel(
   let parsed: Array<{
     skip?: boolean;
     type?: ExtractedSkill["type"];
+    domain?: string;
     slug?: string;
     title?: string;
     trigger?: string;
@@ -179,6 +182,7 @@ export async function extractSkillsFromChannel(
 
     out.push({
       type: p.type,
+      domain: p.domain || "other",
       slug: p.slug,
       title: p.title,
       trigger: p.trigger,
@@ -298,6 +302,7 @@ channels), skip it. Don't invent.
 [
   {
     "type": "process" | "policy" | "decision" | "escalation",
+    "domain": "engineering" | "product" | "support" | "ops" | "sales" | "marketing" | "leadership" | "other",
     "slug": "kebab-case-id",
     "title": "Action-oriented title (max 60 chars) — describes what the AI would EXECUTE",
     "trigger": "When this skill should activate (1 sentence, observable signal)",
@@ -306,6 +311,16 @@ channels), skip it. Don't invent.
     "escalation": "When to bring a human in / who to escalate to. null if N/A."
   }
 ]
+
+Domain definitions:
+- engineering: code, infra, deploys, incidents, devops, backend/frontend
+- product: roadmap, feature design, UX, research
+- support: customer bugs, refunds, escalations to eng, response SLAs
+- ops: payroll, hiring, finance, legal, contractor management, internal tools
+- sales: deals, pricing, contract negotiation, account management
+- marketing: launches, content, growth, campaigns
+- leadership: strategy, fundraising, exec hiring, board comms
+- other: only if truly none of the above
 
 Hard rules:
 - Skip if role is "Bot", "unknown", or signal is too thin.
@@ -349,6 +364,7 @@ export async function extractSkillsForPerson(input: PersonSkillInput): Promise<E
     const parsed = parseJsonBlock<
       Array<{
         type?: ExtractedSkill["type"];
+        domain?: string;
         slug?: string;
         title?: string;
         trigger?: string;
@@ -362,6 +378,7 @@ export async function extractSkillsForPerson(input: PersonSkillInput): Promise<E
       if (!p.type || !p.slug || !p.title || !p.trigger || !p.steps_md) continue;
       out.push({
         type: p.type,
+        domain: p.domain || "other",
         slug: p.slug,
         title: p.title,
         trigger: p.trigger,

@@ -334,6 +334,7 @@ export type Skill = {
   id: string;
   workspace_id: string;
   type: "process" | "policy" | "decision" | "escalation";
+  domain: string | null;
   slug: string;
   title: string;
   trigger: string | null;
@@ -379,6 +380,7 @@ export async function upsertSkill(
   workspaceId: string,
   s: {
     type: Skill["type"];
+    domain?: string | null;
     slug: string;
     title: string;
     trigger: string;
@@ -414,6 +416,7 @@ export async function upsertSkill(
       .from("skills")
       .update({
         title: s.title,
+        domain: s.domain ?? null,
         trigger: s.trigger,
         steps_md: s.steps_md,
         decision_criteria: s.decision_criteria,
@@ -429,6 +432,7 @@ export async function upsertSkill(
     await db().from("skills").insert({
       workspace_id: workspaceId,
       type: s.type,
+      domain: s.domain ?? null,
       slug: s.slug,
       title: s.title,
       trigger: s.trigger,

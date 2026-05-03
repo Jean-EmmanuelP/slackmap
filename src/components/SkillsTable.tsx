@@ -4,11 +4,33 @@ import { useMemo, useState } from "react";
 import type { Skill } from "@/lib/db";
 
 const TYPE_COLORS: Record<string, string> = {
-  process: "bg-blue-500/15 text-blue-300 border-blue-500/30",
-  policy: "bg-amber-500/15 text-amber-300 border-amber-500/30",
-  decision: "bg-purple-500/15 text-purple-300 border-purple-500/30",
-  escalation: "bg-rose-500/15 text-rose-300 border-rose-500/30",
+  process: "bg-blue-50 text-blue-700 border-blue-200",
+  policy: "bg-amber-50 text-amber-700 border-amber-200",
+  decision: "bg-purple-50 text-purple-700 border-purple-200",
+  escalation: "bg-rose-50 text-rose-700 border-rose-200",
 };
+
+const DOMAIN_LABELS: Record<string, string> = {
+  engineering: "Engineering",
+  product: "Product",
+  support: "Support",
+  ops: "Operations",
+  sales: "Sales",
+  marketing: "Marketing",
+  leadership: "Leadership",
+  other: "Other",
+};
+
+const DOMAIN_ORDER = [
+  "engineering",
+  "product",
+  "support",
+  "ops",
+  "sales",
+  "marketing",
+  "leadership",
+  "other",
+];
 
 export function SkillsTable({
   skills,
@@ -72,65 +94,62 @@ export function SkillsTable({
         <span className="text-xs text-zinc-500">{filtered.length} skills</span>
       </div>
 
-      <div className="flex-1 overflow-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-white sticky top-0">
-            <tr className="text-left text-xs uppercase text-zinc-500">
-              <th className="px-6 py-3 font-medium">Type</th>
-              <th className="px-6 py-3 font-medium">Skill</th>
-              <th className="px-6 py-3 font-medium">Trigger</th>
-              <th className="px-6 py-3 font-medium text-right">Sources</th>
-              <th className="px-6 py-3 font-medium text-right">Confidence</th>
-              <th className="px-6 py-3 font-medium"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((s) => (
-              <tr
-                key={s.id}
-                onClick={() => setSelected(s)}
-                className="border-t border-zinc-100 hover:bg-zinc-50 cursor-pointer"
-              >
-                <td className="px-6 py-3">
-                  <span
-                    className={`inline-block px-2 py-0.5 rounded-md border text-xs ${
-                      TYPE_COLORS[s.type] ?? ""
-                    }`}
-                  >
-                    {s.type}
-                  </span>
-                </td>
-                <td className="px-6 py-3">
-                  <div className="font-medium text-zinc-900">{s.title}</div>
-                  <div className="text-xs text-zinc-500 font-mono mt-0.5">{s.slug}</div>
-                </td>
-                <td className="px-6 py-3 text-zinc-600 max-w-md truncate">{s.trigger ?? "—"}</td>
-                <td className="px-6 py-3 text-right tabular-nums text-zinc-700">{s.source_count}</td>
-                <td className="px-6 py-3 text-right tabular-nums">
-                  <ConfidenceBar value={s.confidence} />
-                </td>
-                <td className="px-6 py-3">
-                  <a
-                    href={`/api/workspace/${workspaceId}/skills/${s.slug}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="text-xs text-blue-400 hover:text-blue-300"
-                  >
-                    .md
-                  </a>
-                </td>
-              </tr>
-            ))}
-            {filtered.length === 0 && (
-              <tr>
-                <td colSpan={6} className="px-6 py-12 text-center text-zinc-500">
-                  No skills extracted yet. Mining in progress?
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
+      <div className="flex-1 overflow-auto bg-white">
+        {filtered.length === 0 ? (
+          <div className="px-6 py-12 text-center text-zinc-400 text-sm">
+            No skills extracted yet. Mining in progress?
+          </div>
+        ) : (
+          DOMAIN_ORDER.map((domain) => {
+            const group = filtered.filter((s) => (s.domain ?? "other") === domain);
+            if (group.length === 0) return null;
+            return (
+              <section key={domain} className="border-b border-zinc-200">
+                <header className="sticky top-0 z-10 px-6 py-3 bg-zinc-50 border-b border-zinc-200 flex items-center justify-between">
+                  <h3 className="font-[var(--font-serif)] text-base text-zinc-900">
+                    {DOMAIN_LABELS[domain] ?? domain}
+                  </h3>
+                  <span className="text-xs text-zinc-500 tabular-nums">{group.length} skills</span>
+                </header>
+                <ul className="divide-y divide-zinc-100">
+                  {group.map((s) => (
+                    <li
+                      key={s.id}
+                      onClick={() => setSelected(s)}
+                      className="px-6 py-4 hover:bg-zinc-50 cursor-pointer flex items-start gap-4"
+                    >
+                      <span
+                        className={`mt-1 inline-block px-2 py-0.5 rounded-md border text-[10px] uppercase tracking-wide shrink-0 ${
+                          TYPE_COLORS[s.type] ?? ""
+                        }`}
+                      >
+                        {s.type}
+                      </span>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium text-zinc-900 text-sm">{s.title}</div>
+                        {s.trigger && (
+                          <div className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{s.trigger}</div>
+                        )}
+                      </div>
+                      <div className="shrink-0 flex items-center gap-3">
+                        <ConfidenceBar value={s.confidence} />
+                        <a
+                          href={`/api/workspace/${workspaceId}/skills/${s.slug}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-xs text-blue-700 hover:text-blue-900"
+                        >
+                          .md
+                        </a>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })
+        )}
       </div>
 
       {selected && <SkillPanel skill={selected} teamDomain={teamDomain} onClose={() => setSelected(null)} />}
