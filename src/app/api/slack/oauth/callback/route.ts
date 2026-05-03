@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { WebClient } from "@slack/web-api";
 import { exchangeOAuthCode } from "@/lib/slack";
 import { encrypt } from "@/lib/crypto";
-import { upsertWorkspace } from "@/lib/db";
+import { db, upsertWorkspace } from "@/lib/db";
 import { inngest } from "@/inngest/client";
 
 export async function GET(req: NextRequest) {
@@ -23,15 +24,42 @@ export async function GET(req: NextRequest) {
       installedBySlackUserName: oauth.authedUserName,
     });
 
+    // Best-effort: pull team icon + domain via team.info so the workspace
+    // sidebar shows the customer's actual logo (not our brand mark).
+    try {
+      const slack = new WebClient(oauth.accessToken);
+      const info = await slack.team.info();
+      const team = info.team as
+        | {
+            domain?: string;
+            icon?: { image_88?: string; image_132?: string; image_default?: boolean };
+          }
+        | undefined;
+      const iconUrl =
+        team?.icon && !team.icon.image_default
+          ? team.icon.image_132 ?? team.icon.image_88 ?? null
+          : null;
+      const domain = team?.domain ?? null;
+      if (iconUrl || domain) {
+        await db()
+          .from("workspaces")
+          .update({
+            slack_team_icon_url: iconUrl,
+            slack_team_domain: domain,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", ws.id);
+      }
+    } catch (e) {
+      console.warn("team.info fetch failed", (e as Error).message);
+    }
+
     await inngest.send({
       name: "workspace/backfill.requested",
       data: { workspaceId: ws.id },
     });
 
-    const res = NextResponse.redirect(new URL(`/atlas?ws=${ws.id}`, req.url));
-    // Set a non-httpOnly cookie so the client can read which workspace is active.
-    // For v0 with a single user testing on Bestrong, that's enough auth.
-    // Multi-user requires real auth (Supabase Auth or NextAuth); v1 work.
+    const res = NextResponse.redirect(new URL(`/home?ws=${ws.id}`, req.url));
     res.cookies.set("ws", ws.id, {
       httpOnly: false,
       sameSite: "lax",

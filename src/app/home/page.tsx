@@ -16,7 +16,7 @@ export default async function HomePage({
   const { data: workspace } = await db()
     .from("workspaces")
     .select(
-      "id, slack_team_name, slack_team_domain, freshdesk_domain, freshdesk_status, backfill_status, anthropic_key_set_at",
+      "id, slack_team_name, slack_team_domain, slack_team_icon_url, freshdesk_domain, freshdesk_status, backfill_status, anthropic_key_set_at",
     )
     .eq("id", ws)
     .maybeSingle();
@@ -46,6 +46,7 @@ export default async function HomePage({
     <WorkspaceShell
       workspaceName={workspace.slack_team_name as string}
       workspaceId={workspace.id as string}
+      workspaceIconUrl={(workspace.slack_team_icon_url as string | null) ?? null}
     >
       <HomeDashboard
         workspaceId={workspace.id as string}

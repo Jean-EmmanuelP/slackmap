@@ -24,6 +24,7 @@ export type Workspace = {
   freshdesk_connected_at: string | null;
   freshdesk_status: "idle" | "queued" | "running" | "done" | "failed";
   freshdesk_error: string | null;
+  slack_team_icon_url: string | null;
 };
 
 export type Channel = {

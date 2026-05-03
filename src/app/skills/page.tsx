@@ -19,7 +19,7 @@ export default async function SkillsPage({
   const { data: workspace } = await db()
     .from("workspaces")
     .select(
-      "id, slack_team_name, slack_team_domain, backfill_status, backfill_progress, backfill_total, last_event_received_at",
+      "id, slack_team_name, slack_team_domain, slack_team_icon_url, backfill_status, backfill_progress, backfill_total, last_event_received_at",
     )
     .eq("id", ws)
     .maybeSingle();
@@ -32,6 +32,7 @@ export default async function SkillsPage({
     <WorkspaceShell
       workspaceName={workspace.slack_team_name as string}
       workspaceId={workspace.id as string}
+      workspaceIconUrl={(workspace.slack_team_icon_url as string | null) ?? null}
     >
       <PageHeader
         title="Skills"

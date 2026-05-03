@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { LogoMark } from "./Logo";
 
 type NavItem = {
   href: string;
@@ -51,10 +50,12 @@ const GlossaryIcon = () => (
 export function WorkspaceShell({
   workspaceName,
   workspaceId,
+  workspaceIconUrl,
   children,
 }: {
   workspaceName: string;
   workspaceId: string;
+  workspaceIconUrl?: string | null;
   children: ReactNode;
 }) {
   const pathname = usePathname();
@@ -68,8 +69,11 @@ export function WorkspaceShell({
     { href: `/glossary?ws=${workspaceId}`, key: "/glossary", label: "Glossary", icon: <GlossaryIcon /> },
   ];
 
-  async function logout() {
-    if (!confirm("Disconnect Slack? Your data stays in the database.")) return;
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  async function doDisconnect() {
+    setDisconnecting(true);
     await fetch("/api/logout", { method: "POST" });
     router.push("/");
   }
@@ -83,8 +87,12 @@ export function WorkspaceShell({
       >
         {/* Workspace switcher */}
         <div className="flex items-center gap-2.5 px-3 py-3 border-b border-zinc-200">
-          <Link href="/" aria-label="Home" className="shrink-0">
-            <LogoMark size={26} />
+          <Link
+            href={`/home?ws=${workspaceId}`}
+            aria-label="Home"
+            className="shrink-0"
+          >
+            <WorkspaceIcon name={workspaceName} url={workspaceIconUrl} />
           </Link>
           {!collapsed && (
             <span className="flex-1 text-[13px] font-medium text-zinc-900 truncate">
@@ -128,7 +136,7 @@ export function WorkspaceShell({
         <div className="mt-auto border-t border-zinc-200 px-2 py-2 flex items-center justify-between">
           {!collapsed && (
             <button
-              onClick={logout}
+              onClick={() => setConfirmOpen(true)}
               className="text-[11px] uppercase tracking-wider text-zinc-500 hover:text-zinc-900 px-2 py-1 font-[var(--font-mono)]"
             >
               Disconnect
@@ -147,7 +155,56 @@ export function WorkspaceShell({
       <main className="flex-1 flex flex-col min-w-0 bg-[var(--paper)]">
         <div className="flex-1 flex flex-col min-h-0">{children}</div>
       </main>
+
+      {confirmOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className="w-[420px] bg-[var(--paper)] border border-zinc-300 p-6">
+            <h3 className="text-lg font-medium text-zinc-900">Disconnect Slack?</h3>
+            <p className="mt-1 text-sm text-zinc-600 leading-relaxed">
+              You&apos;ll be signed out of this workspace. Your extracted skills, people, and
+              glossary stay in the database — reconnect later to pick up where you left off.
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-3">
+              <button
+                onClick={() => setConfirmOpen(false)}
+                disabled={disconnecting}
+                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 text-zinc-600 hover:text-zinc-900"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={doDisconnect}
+                disabled={disconnecting}
+                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800 disabled:opacity-50"
+              >
+                {disconnecting ? "Disconnecting…" : "Disconnect"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+function WorkspaceIcon({ name, url }: { name: string; url?: string | null }) {
+  if (url) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return (
+      <img
+        src={url}
+        alt={name}
+        width={28}
+        height={28}
+        className="size-7 object-cover border border-zinc-200"
+      />
+    );
+  }
+  const initial = (name?.trim()[0] ?? "·").toUpperCase();
+  return (
+    <span className="size-7 flex items-center justify-center bg-zinc-900 text-[var(--paper)] text-xs font-medium font-[var(--font-mono)]">
+      {initial}
+    </span>
   );
 }
 
