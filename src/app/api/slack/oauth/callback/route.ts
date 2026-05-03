@@ -4,6 +4,8 @@ import { exchangeOAuthCode } from "@/lib/slack";
 import { encrypt } from "@/lib/crypto";
 import { db, upsertWorkspace } from "@/lib/db";
 import { inngest } from "@/inngest/client";
+import { getSessionUser } from "@/lib/supabase-server";
+import { addMember } from "@/lib/access";
 
 export async function GET(req: NextRequest) {
   const code = req.nextUrl.searchParams.get("code");
@@ -52,6 +54,24 @@ export async function GET(req: NextRequest) {
       }
     } catch (e) {
       console.warn("team.info fetch failed", (e as Error).message);
+    }
+
+    // If the installer is also signed in to Supabase (Google), bind this
+    // workspace to that user — they become the workspace admin/owner. If
+    // they aren't signed in, fall back to the legacy Slack-only flow so the
+    // existing UX still works.
+    try {
+      const user = await getSessionUser();
+      if (user) {
+        await addMember(ws.id, user.id, "admin");
+        await db()
+          .from("workspaces")
+          .update({ owner_user_id: user.id, updated_at: new Date().toISOString() })
+          .eq("id", ws.id)
+          .is("owner_user_id", null);
+      }
+    } catch (e) {
+      console.warn("attach session user failed", (e as Error).message);
     }
 
     await inngest.send({
