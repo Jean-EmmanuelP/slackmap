@@ -60,3 +60,47 @@ export async function addMember(
       { onConflict: "workspace_id,user_id" },
     );
 }
+
+export type VaultAccessRole = "read" | "write" | "admin";
+
+// Resolve whether a user can READ a given vault.
+// - team-visibility vault: any workspace_member can read
+// - private vault: must have a vault_access row
+// Also returns the underlying vault row + workspace admin flag so callers
+// can make finer decisions (write/delete/manage-acl) without a second query.
+export async function userCanAccessVault(
+  vaultId: string,
+  userId: string | null,
+): Promise<{
+  ok: boolean;
+  vault: { id: string; workspace_id: string; visibility: "team" | "private" } | null;
+  isWorkspaceAdmin: boolean;
+  vaultRole: VaultAccessRole | null;
+}> {
+  if (!userId) return { ok: false, vault: null, isWorkspaceAdmin: false, vaultRole: null };
+  const { data: vault } = await db()
+    .from("vaults")
+    .select("id, workspace_id, visibility")
+    .eq("id", vaultId)
+    .maybeSingle();
+  if (!vault) return { ok: false, vault: null, isWorkspaceAdmin: false, vaultRole: null };
+  const v = vault as { id: string; workspace_id: string; visibility: "team" | "private" };
+
+  const isWorkspaceAdmin = await userIsAdmin(v.workspace_id, userId);
+
+  // Look up explicit per-vault grant if any.
+  const { data: grant } = await db()
+    .from("vault_access")
+    .select("role")
+    .eq("vault_id", v.id)
+    .eq("user_id", userId)
+    .maybeSingle();
+  const vaultRole = (grant?.role as VaultAccessRole | undefined) ?? null;
+
+  if (v.visibility === "team") {
+    const member = await userCanRead(v.workspace_id, userId);
+    return { ok: member, vault: v, isWorkspaceAdmin, vaultRole };
+  }
+  // private: must have explicit grant OR be workspace admin
+  return { ok: !!vaultRole || isWorkspaceAdmin, vault: v, isWorkspaceAdmin, vaultRole };
+}
