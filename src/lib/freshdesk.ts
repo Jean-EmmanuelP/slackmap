@@ -42,6 +42,28 @@ export type FreshdeskSolutionArticle = {
 export type FreshdeskCategory = { id: number; name: string };
 export type FreshdeskFolder = { id: number; name: string; category_id: number };
 
+export type FreshdeskAgent = {
+  id: number;
+  available: boolean;
+  occasional: boolean;
+  signature: string | null;
+  ticket_scope: number;
+  type: string | null;
+  group_ids: number[];
+  role_ids: number[];
+  skill_ids: number[];
+  contact: {
+    active: boolean;
+    email: string | null;
+    job_title: string | null;
+    name: string | null;
+    avatar?: { avatar_url?: string | null } | null;
+  };
+  last_active_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 function authHeader(apiKey: string): string {
   return "Basic " + Buffer.from(`${apiKey}:X`).toString("base64");
 }
@@ -107,6 +129,39 @@ export class FreshdeskClient {
 
   async getTicketConversations(ticketId: number): Promise<FreshdeskConversation[]> {
     return this.get<FreshdeskConversation[]>(`/api/v2/tickets/${ticketId}/conversations`);
+  }
+
+  async listAgents(opts: { perPage?: number; pages?: number } = {}): Promise<FreshdeskAgent[]> {
+    const perPage = opts.perPage ?? 100;
+    const pages = opts.pages ?? 2;
+    const out: FreshdeskAgent[] = [];
+    for (let page = 1; page <= pages; page++) {
+      const batch = await this.get<FreshdeskAgent[]>(
+        `/api/v2/agents?per_page=${perPage}&page=${page}`,
+      );
+      out.push(...batch);
+      if (batch.length < perPage) break;
+    }
+    return out;
+  }
+
+  async listTicketsUpdatedSince(
+    sinceIso: string,
+    opts: { perPage?: number; pages?: number } = {},
+  ): Promise<FreshdeskTicket[]> {
+    const perPage = opts.perPage ?? 100;
+    const pages = opts.pages ?? 3;
+    const out: FreshdeskTicket[] = [];
+    for (let page = 1; page <= pages; page++) {
+      const batch = await this.get<FreshdeskTicket[]>(
+        `/api/v2/tickets?per_page=${perPage}&page=${page}&order_by=updated_at&order_type=desc&updated_since=${encodeURIComponent(
+          sinceIso,
+        )}`,
+      );
+      out.push(...batch);
+      if (batch.length < perPage) break;
+    }
+    return out;
   }
 
   ticketUrl(ticketId: number): string {
