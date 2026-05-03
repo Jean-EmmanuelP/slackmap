@@ -4,15 +4,58 @@ import {
   setFreshdeskStatus,
   upsertSkill,
   upsertGlossary,
+  db,
 } from "@/lib/db";
 import { decrypt } from "@/lib/crypto";
-import { FreshdeskClient } from "@/lib/freshdesk";
+import { FreshdeskClient, type FreshdeskAgent } from "@/lib/freshdesk";
 import {
   extractSkillsFromArticles,
   extractSkillsFromTickets,
   extractGlossaryFromFreshdesk,
+  groupTicketsByType,
 } from "@/lib/extract/freshdesk";
 import { loadWorkspaceApiKey } from "@/lib/extract/llm";
+
+async function upsertFreshdeskAgent(
+  workspaceId: string,
+  agent: FreshdeskAgent,
+  resolvedCount: number,
+): Promise<void> {
+  const slackUserId = `freshdesk-agent-${agent.id}`;
+  const name = agent.contact?.name ?? null;
+  const summary =
+    resolvedCount > 0
+      ? `Freshdesk support agent. Last responder on ${resolvedCount} tickets in the last 90 days.`
+      : `Freshdesk support agent.`;
+
+  await db()
+    .from("people")
+    .upsert(
+      {
+        workspace_id: workspaceId,
+        slack_user_id: slackUserId,
+        display_name: name,
+        real_name: name,
+        title: agent.contact?.job_title ?? null,
+        email: agent.contact?.email ?? null,
+        avatar_url: agent.contact?.avatar?.avatar_url ?? null,
+        is_bot: false,
+        is_deleted: false,
+        role_extracted: "Support",
+        summary,
+        tools: ["Freshdesk"],
+        expertise: [],
+        top_channels: [],
+        message_count: resolvedCount,
+        confidence: 0.6,
+        status: "active",
+        last_seen_at: agent.last_active_at ?? new Date().toISOString(),
+        first_seen_at: agent.created_at,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "workspace_id,slack_user_id" },
+    );
+}
 
 // Pull Freshdesk solution articles + recent tickets, run them through the LLM
 // extractor, and persist as skills + glossary entries with source='freshdesk'.
@@ -46,7 +89,7 @@ export const extractFreshdesk = inngest.createFunction(
 
     await step.run("mark-running", () => setFreshdeskStatus(workspaceId, "running"));
 
-    // 1) Solution articles → one skill per article (when applicable).
+    // 1) Solution articles → 0..3 atomic skills per article.
     const articleSkillCount = await step.run("extract-articles", async () => {
       try {
         const cats = await fd.listSolutionCategories();
@@ -54,12 +97,13 @@ export const extractFreshdesk = inngest.createFunction(
           folderName: string;
           article: import("@/lib/freshdesk").FreshdeskSolutionArticle;
         }> = [];
-        for (const cat of cats.slice(0, 5)) {
+        outer: for (const cat of cats.slice(0, 5)) {
           const folders = await fd.listFoldersForCategory(cat.id);
           for (const folder of folders.slice(0, 8)) {
             const articles = await fd.listArticlesInFolder(folder.id);
-            for (const article of articles.slice(0, 12)) {
+            for (const article of articles.slice(0, 60)) {
               perFolderArticles.push({ folderName: folder.name, article });
+              if (perFolderArticles.length >= 200) break outer;
             }
           }
         }
@@ -74,23 +118,44 @@ export const extractFreshdesk = inngest.createFunction(
       }
     });
 
-    // 2) Recent tickets → recurring skills/policies.
+    // 2) Recent tickets → recurring skills/policies, batched by type.
     const ticketSkillCount = await step.run("extract-tickets", async () => {
       try {
-        const tickets = await fd.listRecentTickets({ perPage: 100, pages: 2 });
+        const tickets = await fd.listRecentTickets({ perPage: 100, pages: 3 });
         const withConvos: Array<{
           ticket: import("@/lib/freshdesk").FreshdeskTicket;
           conversations: import("@/lib/freshdesk").FreshdeskConversation[];
         }> = [];
-        for (const t of tickets.slice(0, 30)) {
+        for (const t of tickets.slice(0, 100)) {
           const convos = await fd.getTicketConversations(t.id).catch(() => []);
           withConvos.push({ ticket: t, conversations: convos });
         }
-        const skills = await extractSkillsFromTickets(fd, llmKey, withConvos);
-        for (const s of skills) {
-          await upsertSkill(workspaceId, { ...s, source: "freshdesk" });
+
+        const byType = groupTicketsByType(withConvos);
+        let total = 0;
+        for (const [groupLabel, groupTickets] of byType.entries()) {
+          if (groupTickets.length < 5) continue;
+          const skills = await extractSkillsFromTickets(fd, llmKey, groupTickets, {
+            groupLabel,
+            convosPerTicket: 8,
+          });
+          for (const s of skills) {
+            await upsertSkill(workspaceId, { ...s, source: "freshdesk" });
+          }
+          total += skills.length;
         }
-        return skills.length;
+        // Fallback: nothing groupable — run one mixed batch so we don't lose data.
+        if (total === 0 && withConvos.length > 0) {
+          const skills = await extractSkillsFromTickets(fd, llmKey, withConvos, {
+            groupLabel: "mixed",
+            convosPerTicket: 8,
+          });
+          for (const s of skills) {
+            await upsertSkill(workspaceId, { ...s, source: "freshdesk" });
+          }
+          total = skills.length;
+        }
+        return total;
       } catch (e) {
         logger.warn(`tickets extract failed: ${(e as Error).message}`);
         return 0;
@@ -136,6 +201,34 @@ export const extractFreshdesk = inngest.createFunction(
       }
     });
 
+    // 4) Agents → people rows (so /people shows multi-source brain).
+    const agentCount = await step.run("extract-agents", async () => {
+      try {
+        const agents = await fd.listAgents({ perPage: 100, pages: 2 });
+        // Approximate "last responder" counts via the recent tickets we just pulled.
+        // Unlike the local script, we don't keep withConvos in scope here, so re-pull
+        // a small sample for the count signal.
+        const recent = await fd.listRecentTickets({ perPage: 50, pages: 1 });
+        const counts = new Map<number, number>();
+        for (const t of recent.slice(0, 50)) {
+          const convos = await fd.getTicketConversations(t.id).catch(() => []);
+          const lastAgentReply = [...convos]
+            .reverse()
+            .find((c) => !c.incoming && !c.private && c.user_id);
+          if (lastAgentReply?.user_id) {
+            counts.set(lastAgentReply.user_id, (counts.get(lastAgentReply.user_id) ?? 0) + 1);
+          }
+        }
+        for (const agent of agents) {
+          await upsertFreshdeskAgent(workspaceId, agent, counts.get(agent.id) ?? 0);
+        }
+        return agents.length;
+      } catch (e) {
+        logger.warn(`agents extract failed: ${(e as Error).message}`);
+        return 0;
+      }
+    });
+
     await step.run("mark-done", () => setFreshdeskStatus(workspaceId, "done"));
 
     return {
@@ -143,6 +236,7 @@ export const extractFreshdesk = inngest.createFunction(
       articleSkillCount,
       ticketSkillCount,
       glossaryCount,
+      agentCount,
     };
   },
 );
