@@ -679,14 +679,13 @@ export async function mergeDraftSkills(workspaceId: string, logger?: { info: (ms
     }
   }
 
-  let promoted = 0;
-  const { data: strongDrafts } = await db()
-    .from("skills")
-    .select("id, title, source_count, confidence, trigger, steps_md, decision_criteria, escalation")
-    .eq("workspace_id", workspaceId)
-    .eq("status", "draft")
-    .is("merged_into", null)
-    .gte("confidence", 0.7);
+   let promoted = 0;
+   const { data: strongDrafts } = await db()
+     .from("skills")
+     .select("id, title, source_count, confidence, trigger, steps_md, decision_criteria, escalation")
+     .eq("workspace_id", workspaceId)
+     .eq("status", "draft")
+     .is("merged_into", null);
 
   if (strongDrafts) {
     for (const d of strongDrafts) {
