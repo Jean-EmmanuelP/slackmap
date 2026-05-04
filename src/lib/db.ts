@@ -424,7 +424,7 @@ export type SkillSource = "slack" | "freshdesk" | "manual";
 export type Skill = {
   id: string;
   workspace_id: string;
-  type: "process" | "policy" | "decision" | "escalation";
+  type: "process" | "policy" | "decision" | "escalation" | "faq" | "runbook" | "procedure";
   domain: string | null;
   slug: string;
   title: string;
@@ -440,6 +440,8 @@ export type Skill = {
   first_observed_at: string | null;
   status: "draft" | "active" | "superseded";
   superseded_by: string | null;
+  merged_into: string | null;
+  merged_reason: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -606,6 +608,97 @@ export async function deleteSkill(workspaceId: string, skillId: string): Promise
     .eq("workspace_id", workspaceId)
     .eq("id", skillId);
   if (error) throw error;
+}
+
+function titleSimilarity(a: string, b: string): number {
+  const stopWords = new Set(["a","an","the","for","and","or","of","in","on","to","from","with","by","is","are","was","were","be","been","being","have","has","had","do","does","did","will","would","shall","should","may","might","can","could","this","that","these","those","it","its","de","le","la","les","des","du","un","une","et","ou","en","dans","sur","pour","par","ce","se","ne","pas","que","qui"]);
+  const tokenize = (s: string) =>
+    s.toLowerCase().replace(/[^a-z0-9À-ÿ\s]/g, "").split(/\s+/).filter(w => w.length > 1 && !stopWords.has(w));
+  const ta = new Set(tokenize(a));
+  const tb = new Set(tokenize(b));
+  if (ta.size === 0 || tb.size === 0) return 0;
+  let overlap = 0;
+  for (const w of ta) if (tb.has(w)) overlap++;
+  return overlap / Math.max(ta.size, tb.size);
+}
+
+export async function mergeDraftSkills(workspaceId: string, logger?: { info: (msg: string) => void }): Promise<{ merged: number; promoted: number }> {
+  const { data: drafts, error } = await db()
+    .from("skills")
+    .select("id, title, slug, type, source_count, confidence, citations, steps_md, trigger, decision_criteria, escalation, domain, source, first_observed_at, last_observed_at")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "draft")
+    .is("merged_into", null)
+    .order("source_count", { ascending: false });
+  if (error) throw error;
+  if (!drafts || drafts.length < 2) return { merged: 0, promoted: 0 };
+
+  const SIMILARITY_THRESHOLD = 0.55;
+  const used = new Set<string>();
+  let merged = 0;
+
+  for (let i = 0; i < drafts.length; i++) {
+    if (used.has(drafts[i].id)) continue;
+    for (let j = i + 1; j < drafts.length; j++) {
+      if (used.has(drafts[j].id)) continue;
+      const sim = titleSimilarity(drafts[i].title, drafts[j].title);
+      if (sim < SIMILARITY_THRESHOLD) continue;
+
+      const keeper = (drafts[i].source_count as number) >= (drafts[j].source_count as number) ? drafts[i] : drafts[j];
+      const goner = keeper.id === drafts[i].id ? drafts[j] : drafts[i];
+
+      const keeperCitations = (keeper.citations as Skill["citations"]) ?? [];
+      const gonerCitations = (goner.citations as Skill["citations"]) ?? [];
+      const seenTs = new Set(keeperCitations.map(c => c.ts));
+      const mergedCitations = [...keeperCitations];
+      for (const c of gonerCitations) {
+        if (!seenTs.has(c.ts)) { mergedCitations.push(c); seenTs.add(c.ts); }
+      }
+
+      const newSourceCount = (keeper.source_count as number) + (goner.source_count as number);
+      const newConfidence = Math.min(0.99, 0.4 + 0.1 * Math.log2(newSourceCount + 1));
+
+      await db().from("skills").update({
+        citations: mergedCitations,
+        source_count: newSourceCount,
+        confidence: newConfidence,
+        updated_at: new Date().toISOString(),
+      }).eq("id", keeper.id);
+
+      await db().from("skills").update({
+        status: "superseded",
+        merged_into: keeper.id,
+        merged_reason: `merged into "${keeper.title}" (title similarity ${(sim * 100).toFixed(0)}%)`,
+        superseded_by: keeper.id,
+        updated_at: new Date().toISOString(),
+      }).eq("id", goner.id);
+
+      used.add(goner.id);
+      merged++;
+      logger?.info(`Merged "${goner.title}" → "${keeper.title}" (${(sim * 100).toFixed(0)}% similar)`);
+    }
+  }
+
+  let promoted = 0;
+  const { data: strongDrafts } = await db()
+    .from("skills")
+    .select("id, title, source_count, confidence, trigger, steps_md, decision_criteria, escalation")
+    .eq("workspace_id", workspaceId)
+    .eq("status", "draft")
+    .is("merged_into", null)
+    .gte("confidence", 0.7);
+
+  if (strongDrafts) {
+    for (const d of strongDrafts) {
+      const hasAllFields = d.trigger && d.steps_md && d.steps_md.length > 50;
+      if (!hasAllFields) continue;
+      await db().from("skills").update({ status: "active", updated_at: new Date().toISOString() }).eq("id", d.id);
+      promoted++;
+      logger?.info(`Promoted "${d.title}" to active (confidence=${d.confidence}, sources=${d.source_count})`);
+    }
+  }
+
+  return { merged, promoted };
 }
 
 export async function markChannelSkillsExtracted(
