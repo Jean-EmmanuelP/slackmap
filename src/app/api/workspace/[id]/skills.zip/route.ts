@@ -25,7 +25,8 @@ export async function GET(
     .maybeSingle();
   if (!ws) return new NextResponse("not found", { status: 404 });
 
-  const skills = await listSkills(id);
+  const allSkills = await listSkills(id);
+  const skills = allSkills.filter((s) => s.status === "active");
   const teamDomain = (ws.slack_team_domain as string | null) ?? null;
   const teamSlug = (ws.slack_team_name as string).toLowerCase().replace(/[^a-z0-9]+/g, "-");
   const bundleName = `${teamSlug}-skills`;

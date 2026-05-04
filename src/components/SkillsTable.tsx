@@ -50,13 +50,18 @@ export function SkillsTable({
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | Skill["type"]>("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | SkillSource>("all");
+  const [showDrafts, setShowDrafts] = useState(false);
   const [selected, setSelected] = useState<Skill | null>(null);
   const [creating, setCreating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
 
+  const activeSkills = skills.filter((s) => s.status === "active");
+  const draftSkills = skills.filter((s) => s.status === "draft");
+  const visibleSkills = showDrafts ? skills : activeSkills;
+
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
-    return skills.filter((s) => {
+    return visibleSkills.filter((s) => {
       if (typeFilter !== "all" && s.type !== typeFilter) return false;
       if (sourceFilter !== "all" && (s.source ?? "slack") !== sourceFilter) return false;
       if (ql.length === 0) return true;
@@ -66,7 +71,7 @@ export function SkillsTable({
         (s.trigger?.toLowerCase().includes(ql) ?? false)
       );
     });
-  }, [skills, q, typeFilter, sourceFilter]);
+  }, [visibleSkills, q, typeFilter, sourceFilter]);
 
   const types: Array<"all" | Skill["type"]> = ["all", "process", "policy", "decision", "escalation"];
   const sources: Array<"all" | SkillSource> = ["all", "slack", "freshdesk", "manual"];
@@ -115,6 +120,17 @@ export function SkillsTable({
             </button>
           ))}
         </div>
+        {isAdmin && draftSkills.length > 0 && (
+          <button
+            onClick={async () => {
+              await fetch(`/api/workspace/${workspaceId}/merge-skills`, { method: "POST" });
+              setRefreshKey((k) => k + 1);
+            }}
+            className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+          >
+            Merge drafts
+          </button>
+        )}
         {isAdmin && (
           <button
             onClick={() => setCreating(true)}
@@ -129,7 +145,21 @@ export function SkillsTable({
         >
           Export bundle →
         </a>
-        <span className="text-xs text-zinc-500 font-[var(--font-mono)]">{filtered.length} skills</span>
+        {draftSkills.length > 0 && (
+          <button
+            onClick={() => setShowDrafts(!showDrafts)}
+            className={`text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border transition-colors ${
+              showDrafts
+                ? "border-amber-400 bg-amber-50 text-amber-800"
+                : "border-zinc-300 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+            }`}
+          >
+            Candidates ({draftSkills.length})
+          </button>
+        )}
+        <span className="text-xs text-zinc-500 font-[var(--font-mono)]">
+          {filtered.length} {showDrafts ? "skills" : "validated"}
+        </span>
       </div>
 
       {creating && isAdmin && (

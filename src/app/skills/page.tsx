@@ -49,7 +49,7 @@ export default async function SkillsPage({
       <PageHeader
         title="Skills"
         subtitle="Procedures, policies, and decisions extracted as Claude-skill-compatible markdown. Drop them in any AI agent and it can act with your company's rules."
-        count={{ value: skills.length, label: "skills" }}
+        count={{ value: skills.filter((s) => s.status === "active").length, label: "validated skills" }}
       />
       <LiveStatus
         status={workspace.backfill_status as "pending" | "running" | "ready" | "failed"}
