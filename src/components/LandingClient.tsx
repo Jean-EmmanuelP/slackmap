@@ -2,11 +2,10 @@
 
 import { motion } from "framer-motion";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { LogoMark } from "./Logo";
 import { SolutionsShowcase } from "./SolutionsShowcase";
 
-// Rising-on-scroll animation, YC-style: bigger upward travel + slow ease-out
-// curve for that "settling into place" feel as elements enter the viewport.
 const fadeUp = {
   initial: { opacity: 0, y: 60 },
   whileInView: { opacity: 1, y: 0 },
@@ -21,18 +20,11 @@ const fadeUpDelayed = (delay: number) => ({
   viewport: { once: true, margin: "-80px" },
 });
 
-export function LandingClient({
-  oauthUrl,
-  error,
-}: {
-  oauthUrl: string;
-  error?: string;
-}) {
+export function LandingClient({ error }: { error?: string }) {
   return (
     <div className="bg-[#f5f1ea] text-zinc-900 font-sans">
-      <Nav oauthUrl={oauthUrl} />
+      <Nav />
 
-      {/* HERO — minimal: just headline + single CTA */}
       <section className="min-h-screen px-8 max-w-6xl mx-auto flex flex-col items-center justify-center text-center pt-16 pb-12">
         <motion.h1
           {...fadeUp}
@@ -53,12 +45,12 @@ export function LandingClient({
           {...fadeUpDelayed(0.25)}
           className="mt-10 flex flex-col items-center gap-3"
         >
-          <a
-            href={oauthUrl}
+          <Link
+            href="/login"
             className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-zinc-900 text-white font-medium hover:bg-zinc-800 transition-colors text-base"
           >
-            Connect your Slack
-          </a>
+            Get started
+          </Link>
           <div className="text-xs text-zinc-500 mt-2">
             Available connectors:
             <span className="ml-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">Slack</span>
@@ -73,7 +65,6 @@ export function LandingClient({
         )}
       </section>
 
-      {/* PROBLEM */}
       <Section>
         <motion.p
           {...fadeUp}
@@ -107,7 +98,6 @@ export function LandingClient({
         </motion.div>
       </Section>
 
-      {/* OUTPUTS — sticky scrollytelling, cards rise sequentially */}
       <SolutionsShowcase
         solutions={[
           {
@@ -171,7 +161,6 @@ export function LandingClient({
         ]}
       />
 
-      {/* OPEN SOURCE */}
       <section id="open-source">
       <Section>
         <motion.p
@@ -199,7 +188,6 @@ export function LandingClient({
       </Section>
       </section>
 
-      {/* CTA */}
       <Section center>
         <motion.h2
           {...fadeUp}
@@ -212,35 +200,40 @@ export function LandingClient({
           </em>
         </motion.h2>
         <motion.div {...fadeUpDelayed(0.2)} className="mt-12 flex flex-col items-center gap-3">
-          <a
-            href={oauthUrl}
+          <Link
+            href="/login"
             className="inline-flex items-center gap-2 px-7 py-3.5 rounded-full bg-zinc-900 text-zinc-50 font-medium hover:bg-zinc-800 text-base"
           >
-            Connect your Slack
-          </a>
+            Get started
+          </Link>
         </motion.div>
       </Section>
 
-      <footer className="border-t border-zinc-200 px-8 py-10 text-xs text-zinc-500 flex items-center justify-between max-w-6xl mx-auto">
-        <span>Slackmap — open-source Company Brain</span>
-        <a
-          href="https://github.com/Jean-EmmanuelP/slackmap"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="hover:text-zinc-800"
-        >
-          GitHub →
-        </a>
+      <footer className="border-t border-zinc-200 px-8 py-10 text-xs text-zinc-500 max-w-6xl mx-auto">
+        <div className="flex items-center justify-between">
+          <span>Slackmap — open-source Company Brain</span>
+          <div className="flex items-center gap-4">
+            <a href="/privacy" className="hover:text-zinc-800">Privacy Policy</a>
+            <a href="/terms" className="hover:text-zinc-800">Terms of Service</a>
+            <a
+              href="https://github.com/Jean-EmmanuelP/slackmap"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hover:text-zinc-800"
+            >
+              GitHub →
+            </a>
+          </div>
+        </div>
       </footer>
     </div>
   );
 }
 
-function Nav({ oauthUrl }: { oauthUrl: string }) {
+function Nav() {
   return (
     <nav className="sticky top-0 z-50 relative flex items-center justify-center px-6 py-4 bg-[var(--paper)]/80 backdrop-blur border-b border-zinc-200/60">
       <div className="flex w-full max-w-[1400px] items-center gap-10">
-        {/* Left links — pushed toward the center */}
         <div className="flex flex-1 items-center justify-end gap-8 text-sm text-zinc-600">
           <a href="#problem" className="hover:text-zinc-900">
             Problem
@@ -249,11 +242,9 @@ function Nav({ oauthUrl }: { oauthUrl: string }) {
             Solutions
           </a>
         </div>
-        {/* Center logo */}
         <a href="/" className="shrink-0" aria-label="Slackmap">
           <LogoMark size={40} />
         </a>
-        {/* Right links — pushed toward the center */}
         <div className="flex flex-1 items-center justify-start gap-8 text-sm text-zinc-600">
           <a href="#open-source" className="hover:text-zinc-900">
             Open source
@@ -268,13 +259,12 @@ function Nav({ oauthUrl }: { oauthUrl: string }) {
           </a>
         </div>
       </div>
-      {/* CTA absolute right (YC-style — sits outside the centered group) */}
-      <a
-        href={oauthUrl}
+      <Link
+        href="/login"
         className="absolute right-6 text-sm bg-zinc-900 text-white px-5 py-2 rounded-full hover:bg-zinc-800 font-medium"
       >
-        Connect Slack
-      </a>
+        Sign in
+      </Link>
     </nav>
   );
 }
@@ -296,46 +286,6 @@ function Section({
     >
       {children}
     </section>
-  );
-}
-
-function Output({
-  number,
-  eyebrow,
-  title,
-  description,
-  children,
-}: {
-  number: string;
-  eyebrow: string;
-  title: ReactNode;
-  description: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="grid md:grid-cols-2 gap-16 items-center w-full">
-      <div>
-        <motion.p
-          {...fadeUp}
-          className="font-[var(--font-serif)] text-zinc-400 text-sm mb-2"
-        >
-          {number} · {eyebrow}
-        </motion.p>
-        <motion.h2
-          {...fadeUpDelayed(0.05)}
-          className="font-[var(--font-serif)] text-4xl md:text-5xl leading-[1.05] tracking-tight"
-        >
-          {title}
-        </motion.h2>
-        <motion.p
-          {...fadeUpDelayed(0.15)}
-          className="mt-6 text-zinc-600 text-base max-w-md"
-        >
-          {description}
-        </motion.p>
-      </div>
-      <motion.div {...fadeUpDelayed(0.1)}>{children}</motion.div>
-    </div>
   );
 }
 

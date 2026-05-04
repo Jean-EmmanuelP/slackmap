@@ -7,7 +7,7 @@ type EntryRow = {
   id: string;
   vault_id: string;
   workspace_id: string;
-  kind: "password" | "account" | "api_key" | "url" | "note" | "other";
+  kind: "password" | "account" | "api_key" | "url" | "note" | "env_file" | "other";
   label: string;
   username: string | null;
   url: string | null;
@@ -36,7 +36,7 @@ export async function GET(
 
   const { data: vault } = await db()
     .from("vaults")
-    .select("id, workspace_id, name, description, visibility, created_by, created_at, updated_at")
+    .select("id, workspace_id, name, description, category, visibility, created_by, created_at, updated_at")
     .eq("id", vaultId)
     .single();
 
@@ -81,13 +81,14 @@ export async function PATCH(
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (typeof body?.name === "string") patch.name = body.name.trim();
   if (typeof body?.description === "string") patch.description = body.description.trim();
+  if (typeof body?.category === "string") patch.category = body.category.trim() || null;
   if (body?.visibility === "team" || body?.visibility === "private") patch.visibility = body.visibility;
 
   const { data, error } = await db()
     .from("vaults")
     .update(patch)
     .eq("id", vaultId)
-    .select("id, workspace_id, name, description, visibility, updated_at")
+    .select("id, workspace_id, name, description, category, visibility, updated_at")
     .single();
   if (error) {
     if (error.code === "23505") {

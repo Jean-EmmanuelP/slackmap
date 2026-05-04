@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { VaultAccessPanel } from "./VaultAccessPanel";
 
-type Kind = "password" | "account" | "api_key" | "url" | "note" | "other";
+type Kind = "password" | "account" | "api_key" | "url" | "note" | "env_file" | "other";
 
 type Entry = {
   id: string;
@@ -26,6 +26,7 @@ const KINDS: Array<{ value: Kind; label: string }> = [
   { value: "api_key", label: "API key" },
   { value: "url", label: "URL" },
   { value: "note", label: "Note" },
+  { value: "env_file", label: "Env variable" },
   { value: "other", label: "Other" },
 ];
 
@@ -48,6 +49,7 @@ export function VaultDetail({
   const [accessOpen, setAccessOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [importingEnv, setImportingEnv] = useState(false);
 
   async function load() {
     const res = await fetch(`/api/vaults/${vaultId}`);
@@ -100,6 +102,14 @@ export function VaultDetail({
               className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:bg-zinc-100"
             >
               Manage access
+            </button>
+          )}
+          {canWrite && (
+            <button
+              onClick={() => setImportingEnv(true)}
+              className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:bg-zinc-100"
+            >
+              Import .env
             </button>
           )}
           {canWrite && (
@@ -186,6 +196,17 @@ export function VaultDetail({
 
       {accessOpen && (
         <VaultAccessPanel vaultId={vaultId} onClose={() => setAccessOpen(false)} />
+      )}
+
+      {importingEnv && canWrite && (
+        <EnvImportModal
+          vaultId={vaultId}
+          onClose={() => setImportingEnv(false)}
+          onImported={() => {
+            setImportingEnv(false);
+            load();
+          }}
+        />
       )}
 
       {error && (
@@ -525,5 +546,154 @@ function EntryForm({
         </button>
       </div>
     </form>
+  );
+}
+
+function EnvImportModal({
+  vaultId,
+  onClose,
+  onImported,
+}: {
+  vaultId: string;
+  onClose: () => void;
+  onImported: () => void;
+}) {
+  const [content, setContent] = useState("");
+  const [prefix, setPrefix] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Array<{ key: string; value: string }> | null>(null);
+
+  function parseEnv(text: string) {
+    const lines = text.split("\n");
+    const result: Array<{ key: string; value: string }> = [];
+    for (const raw of lines) {
+      const line = raw.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eqIdx = line.indexOf("=");
+      if (eqIdx === -1) continue;
+      const key = line.slice(0, eqIdx).trim();
+      let value = line.slice(eqIdx + 1).trim();
+      if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+        value = value.slice(1, -1);
+      }
+      if (key) result.push({ key, value });
+    }
+    return result;
+  }
+
+  useEffect(() => {
+    setPreview(content.trim() ? parseEnv(content) : null);
+  }, [content]);
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      const res = await fetch(`/api/vaults/${vaultId}/import-env`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ content, prefix: prefix.trim() }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErr(d.error ?? "import_failed");
+        return;
+      }
+      onImported();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex">
+      <div className="flex-1 bg-black/30" onClick={onClose} />
+      <aside className="w-[560px] h-full bg-[var(--paper)] border-l border-zinc-300 overflow-y-auto">
+        <header className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
+          <h2 className="text-sm font-medium text-zinc-900">Import .env file</h2>
+          <button
+            onClick={onClose}
+            className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500 hover:text-zinc-900"
+          >
+            Close
+          </button>
+        </header>
+
+        <form onSubmit={submit} className="px-6 py-4 space-y-4">
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+              .env content
+            </label>
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              rows={10}
+              placeholder={`DATABASE_URL=postgres://...\nSTRIPE_SECRET_KEY=sk_live_...\n# comments are ignored\nNOTION_TOKEN=secret_...`}
+              className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-700 font-[var(--font-mono)]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+              Key prefix (optional)
+            </label>
+            <input
+              value={prefix}
+              onChange={(e) => setPrefix(e.target.value)}
+              placeholder="e.g. BESTrong_"
+              className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-700 font-[var(--font-mono)]"
+            />
+            <p className="mt-1 text-[10px] text-zinc-500">
+              Each variable becomes a vault entry with prefix + key as label (e.g. BESTrong_DATABASE_URL)
+            </p>
+          </div>
+
+          {preview && preview.length > 0 && (
+            <div>
+              <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+                Preview ({preview.length} variables)
+              </label>
+              <div className="border border-zinc-200 max-h-48 overflow-y-auto divide-y divide-zinc-100">
+                {preview.slice(0, 20).map((p, i) => (
+                  <div key={i} className="px-3 py-1.5 flex items-center gap-2 text-xs font-[var(--font-mono)]">
+                    <span className="text-zinc-900 font-medium">{prefix.trim()}{p.key}</span>
+                    <span className="text-zinc-400">=</span>
+                    <span className="text-zinc-500 truncate">{p.value.length > 40 ? p.value.slice(0, 40) + "..." : p.value}</span>
+                  </div>
+                ))}
+                {preview.length > 20 && (
+                  <div className="px-3 py-1.5 text-[10px] text-zinc-500 font-[var(--font-mono)]">
+                    ...and {preview.length - 20} more
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {err && (
+            <div className="text-xs text-rose-700 font-[var(--font-mono)]">{err}</div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <button
+              type="submit"
+              disabled={busy || !content.trim()}
+              className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-[var(--brand)] bg-[var(--brand)] text-white hover:bg-[var(--brand-hover)] disabled:opacity-50"
+            >
+              {busy ? "Importing…" : `Import ${preview?.length ?? 0} variables`}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 text-zinc-600 hover:text-zinc-900"
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      </aside>
+    </div>
   );
 }

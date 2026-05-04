@@ -1,5 +1,3 @@
-import { buildOAuthUrl } from "@/lib/slack";
-import { randomBytes } from "node:crypto";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "@/lib/db";
@@ -22,8 +20,5 @@ export default async function Home({
   }
 
   const { error } = await searchParams;
-  const state = randomBytes(16).toString("hex");
-  const oauthUrl = buildOAuthUrl(state);
-
-  return <LandingClient oauthUrl={oauthUrl} error={error} />;
+  return <LandingClient error={error} />;
 }

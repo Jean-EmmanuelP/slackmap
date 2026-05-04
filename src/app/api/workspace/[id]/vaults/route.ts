@@ -19,8 +19,9 @@ export async function GET(
 
   const { data: vaults, error } = await db()
     .from("vaults")
-    .select("id, workspace_id, name, description, visibility, created_by, created_at, updated_at")
+    .select("id, workspace_id, name, description, category, visibility, created_by, created_at, updated_at")
     .eq("workspace_id", workspaceId)
+    .order("category")
     .order("created_at", { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -30,6 +31,7 @@ export async function GET(
     workspace_id: string;
     name: string;
     description: string | null;
+    category: string | null;
     visibility: "team" | "private";
     created_by: string | null;
     created_at: string;
@@ -86,6 +88,7 @@ export async function POST(
   const name = (body?.name ?? "").toString().trim();
   const description = body?.description ? body.description.toString().trim() : null;
   const visibility = body?.visibility === "private" ? "private" : "team";
+  const category = body?.category ? body.category.toString().trim() : null;
 
   if (!name) return NextResponse.json({ error: "missing_name" }, { status: 400 });
 
@@ -95,10 +98,11 @@ export async function POST(
       workspace_id: workspaceId,
       name,
       description,
+      category,
       visibility,
       created_by: user.id,
     })
-    .select("id, workspace_id, name, description, visibility, created_at, updated_at")
+    .select("id, workspace_id, name, description, category, visibility, created_at, updated_at")
     .single();
   if (error) {
     if (error.code === "23505") {

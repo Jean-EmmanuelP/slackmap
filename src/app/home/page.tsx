@@ -3,7 +3,7 @@ import { db, listChannels, listSkills, listGlossary, listPeople } from "@/lib/db
 import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { HomeDashboard } from "@/components/HomeDashboard";
 import { getSessionUser } from "@/lib/supabase-server";
-import { userIsAdmin } from "@/lib/access";
+import { userIsAdmin, userCanRead } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +15,9 @@ export default async function HomePage({
   const { ws } = await searchParams;
   if (!ws) redirect("/");
 
+  const sessionUser = await getSessionUser();
+  const currentUserId = sessionUser?.id ?? null;
+
   const { data: workspace } = await db()
     .from("workspaces")
     .select(
@@ -25,18 +28,20 @@ export default async function HomePage({
 
   if (!workspace) redirect("/");
 
-  const [channels, skills, glossary, people, sessionUser] = await Promise.all([
+  if (currentUserId && !(await userCanRead(workspace.id as string, currentUserId))) {
+    redirect("/no-workspace");
+  }
+
+  const isAdmin = currentUserId
+    ? await userIsAdmin(workspace.id as string, currentUserId)
+    : false;
+
+  const [channels, skills, glossary, people] = await Promise.all([
     listChannels(workspace.id as string),
     listSkills(workspace.id as string),
     listGlossary(workspace.id as string),
     listPeople(workspace.id as string),
-    getSessionUser(),
   ]);
-
-  const currentUserId = sessionUser?.id ?? null;
-  const isAdmin = currentUserId
-    ? await userIsAdmin(workspace.id as string, currentUserId)
-    : false;
 
   const counts = {
     channels: channels.filter((c) => !c.archived).length,

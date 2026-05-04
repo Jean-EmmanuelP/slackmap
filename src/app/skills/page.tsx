@@ -5,6 +5,8 @@ import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { SkillsTable } from "@/components/SkillsTable";
 import { MiningProgress } from "@/components/MiningProgress";
 import { PageHeader } from "@/components/PageHeader";
+import { getSessionUser } from "@/lib/supabase-server";
+import { userIsAdmin, userCanRead } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -16,6 +18,9 @@ export default async function SkillsPage({
   const { ws } = await searchParams;
   if (!ws) redirect("/");
 
+  const user = await getSessionUser();
+  if (user && !(await userCanRead(ws, user.id))) redirect("/");
+
   const { data: workspace } = await db()
     .from("workspaces")
     .select(
@@ -25,6 +30,8 @@ export default async function SkillsPage({
     .maybeSingle();
 
   if (!workspace) redirect("/");
+
+  const isAdmin = user ? await userIsAdmin(ws, user.id) : false;
 
   const [skills, channels] = await Promise.all([
     listSkills(workspace.id as string),
@@ -56,6 +63,7 @@ export default async function SkillsPage({
         workspaceId={workspace.id as string}
         teamDomain={(workspace.slack_team_domain as string | null) ?? null}
         channelNames={channelNames}
+        isAdmin={isAdmin}
       />
     </WorkspaceShell>
   );

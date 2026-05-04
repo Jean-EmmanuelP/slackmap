@@ -39,16 +39,20 @@ export function SkillsTable({
   workspaceId,
   teamDomain,
   channelNames,
+  isAdmin,
 }: {
   skills: Skill[];
   workspaceId: string;
   teamDomain: string | null;
   channelNames?: Record<string, string>;
+  isAdmin?: boolean;
 }) {
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | Skill["type"]>("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | SkillSource>("all");
   const [selected, setSelected] = useState<Skill | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
@@ -65,10 +69,10 @@ export function SkillsTable({
   }, [skills, q, typeFilter, sourceFilter]);
 
   const types: Array<"all" | Skill["type"]> = ["all", "process", "policy", "decision", "escalation"];
-  const sources: Array<"all" | SkillSource> = ["all", "slack", "freshdesk"];
+  const sources: Array<"all" | SkillSource> = ["all", "slack", "freshdesk", "manual"];
 
   return (
-    <div className="flex-1 flex flex-col">
+    <div className="flex-1 flex flex-col" key={refreshKey}>
       <div className="px-6 py-4 flex items-center gap-3 border-b border-zinc-200">
         <input
           type="search"
@@ -111,14 +115,30 @@ export function SkillsTable({
             </button>
           ))}
         </div>
+        {isAdmin && (
+          <button
+            onClick={() => setCreating(true)}
+            className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-[var(--brand)] bg-[var(--brand)] text-white hover:bg-[var(--brand-hover)]"
+          >
+            + Add skill
+          </button>
+        )}
         <a
           href={`/api/workspace/${workspaceId}/skills.zip`}
-          className="ml-auto text-xs text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-400 hover:decoration-zinc-700 font-[var(--font-mono)] uppercase tracking-wider"
+          className="text-xs text-zinc-700 hover:text-zinc-900 underline underline-offset-4 decoration-zinc-400 hover:decoration-zinc-700 font-[var(--font-mono)] uppercase tracking-wider"
         >
           Export bundle →
         </a>
         <span className="text-xs text-zinc-500 font-[var(--font-mono)]">{filtered.length} skills</span>
       </div>
+
+      {creating && isAdmin && (
+        <SkillForm
+          workspaceId={workspaceId}
+          onClose={() => setCreating(false)}
+          onSaved={() => { setCreating(false); setRefreshKey((k) => k + 1); }}
+        />
+      )}
 
       <div className="flex-1 overflow-auto">
         {filtered.length === 0 ? (
@@ -184,7 +204,10 @@ export function SkillsTable({
           skill={selected}
           teamDomain={teamDomain}
           channelNames={channelNames ?? {}}
+          workspaceId={workspaceId}
+          isAdmin={isAdmin}
           onClose={() => setSelected(null)}
+          onEdited={() => setRefreshKey((k) => k + 1)}
         />
       )}
     </div>
@@ -221,29 +244,89 @@ function SkillPanel({
   skill,
   teamDomain,
   channelNames,
+  workspaceId,
+  isAdmin,
   onClose,
+  onEdited,
 }: {
   skill: Skill;
   teamDomain: string | null;
   channelNames: Record<string, string>;
+  workspaceId: string;
+  isAdmin?: boolean;
   onClose: () => void;
+  onEdited: () => void;
 }) {
+  const [editing, setEditing] = useState(false);
+
+  async function handleDelete() {
+    if (!confirm("Delete this skill?")) return;
+    await fetch(`/api/workspace/${workspaceId}/skills`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ id: skill.id }),
+    });
+    onEdited();
+  }
+
+  if (editing && isAdmin) {
+    return (
+      <div className="fixed inset-0 z-50 flex">
+        <div className="flex-1 bg-black/50" onClick={() => setEditing(false)} />
+        <aside className="w-[640px] h-full bg-[var(--paper)] border-l border-zinc-300 overflow-y-auto">
+          <div className="p-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-zinc-900">Edit skill</h2>
+              <button onClick={() => setEditing(false)} className="text-zinc-500 hover:text-zinc-800">✕</button>
+            </div>
+            <SkillForm
+              workspaceId={workspaceId}
+              initial={skill}
+              onClose={() => setEditing(false)}
+              onSaved={() => { setEditing(false); onEdited(); }}
+            />
+          </div>
+        </aside>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex">
       <div className="flex-1 bg-black/50" onClick={onClose} />
       <aside className="w-[640px] h-full bg-[var(--paper)] border-l border-zinc-300 overflow-y-auto p-8">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-500 hover:text-zinc-800"
-        >
-          ✕
-        </button>
-        <div
-          className={`inline-block px-2 py-0.5 border text-[10px] uppercase tracking-wider font-[var(--font-mono)] mb-3 ${
-            TYPE_COLORS[skill.type] ?? ""
-          }`}
-        >
-          {skill.type}
+        <div className="flex items-center justify-between">
+          <div>
+            <div
+              className={`inline-block px-2 py-0.5 border text-[10px] uppercase tracking-wider font-[var(--font-mono)] mb-3 ${
+                TYPE_COLORS[skill.type] ?? ""
+              }`}
+            >
+              {skill.type}
+            </div>
+            {isAdmin && skill.source === "manual" && (
+              <div className="flex items-center gap-2 mb-3">
+                <button
+                  onClick={() => setEditing(true)}
+                  className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-600 hover:text-zinc-900 border border-zinc-300 px-2 py-0.5"
+                >
+                  Edit
+                </button>
+                <button
+                  onClick={handleDelete}
+                  className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] text-rose-600 hover:text-rose-800 border border-zinc-300 px-2 py-0.5"
+                >
+                  Delete
+                </button>
+              </div>
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="text-zinc-500 hover:text-zinc-800"
+          >
+            ✕
+          </button>
         </div>
         <h2 className="text-2xl font-semibold text-zinc-900">{skill.title}</h2>
         <p className="text-xs text-zinc-500 font-[var(--font-mono)] mt-1">{skill.slug}</p>
@@ -323,5 +406,223 @@ function Section({ title, children }: { title: string; children: React.ReactNode
       <h3 className="text-xs uppercase tracking-wide text-zinc-500 mb-2">{title}</h3>
       {children}
     </section>
+  );
+}
+
+const SKILL_TYPES: Array<{ value: Skill["type"]; label: string }> = [
+  { value: "process", label: "Process" },
+  { value: "policy", label: "Policy" },
+  { value: "decision", label: "Decision" },
+  { value: "escalation", label: "Escalation" },
+];
+
+const SKILL_DOMAINS: Array<{ value: string; label: string }> = [
+  { value: "", label: "—" },
+  { value: "engineering", label: "Engineering" },
+  { value: "product", label: "Product" },
+  { value: "support", label: "Support" },
+  { value: "ops", label: "Operations" },
+  { value: "sales", label: "Sales" },
+  { value: "marketing", label: "Marketing" },
+  { value: "leadership", label: "Leadership" },
+  { value: "other", label: "Other" },
+];
+
+function SkillForm({
+  workspaceId,
+  initial,
+  onClose,
+  onSaved,
+}: {
+  workspaceId: string;
+  initial?: Skill;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const isEdit = !!initial;
+  const [type, setType] = useState<Skill["type"]>(initial?.type ?? "process");
+  const [domain, setDomain] = useState(initial?.domain ?? "");
+  const [title, setTitle] = useState(initial?.title ?? "");
+  const [slug, setSlug] = useState(initial?.slug ?? "");
+  const [trigger, setTrigger] = useState(initial?.trigger ?? "");
+  const [stepsMd, setStepsMd] = useState(initial?.steps_md ?? "");
+  const [decisionCriteria, setDecisionCriteria] = useState(initial?.decision_criteria ?? "");
+  const [escalation, setEscalation] = useState(initial?.escalation ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  function handleTitleChange(val: string) {
+    setTitle(val);
+    if (!isEdit) {
+      setSlug(
+        val
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, "")
+          .replace(/\s+/g, "-")
+          .replace(/-+/g, "-")
+          .slice(0, 80)
+      );
+    }
+  }
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      const url = `/api/workspace/${workspaceId}/skills`;
+      const method = isEdit ? "PATCH" : "POST";
+      const body: Record<string, unknown> = {
+        type,
+        domain: domain || null,
+        title: title.trim(),
+        slug: slug.trim(),
+        trigger: trigger.trim() || null,
+        steps_md: stepsMd || null,
+        decision_criteria: decisionCriteria || null,
+        escalation: escalation || null,
+      };
+      if (isEdit) body.id = initial!.id;
+      const res = await fetch(url, {
+        method,
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setErr(d.error ?? "save_failed");
+        return;
+      }
+      onSaved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-4">
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+            Type
+          </label>
+          <select
+            value={type}
+            onChange={(e) => setType(e.target.value as Skill["type"])}
+            className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 focus:outline-none focus:border-zinc-700"
+          >
+            {SKILL_TYPES.map((t) => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+            Domain
+          </label>
+          <select
+            value={domain}
+            onChange={(e) => setDomain(e.target.value)}
+            className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 focus:outline-none focus:border-zinc-700"
+          >
+            {SKILL_DOMAINS.map((d) => (
+              <option key={d.value} value={d.value}>{d.label}</option>
+            ))}
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+          Title
+        </label>
+        <input
+          value={title}
+          onChange={(e) => handleTitleChange(e.target.value)}
+          required
+          placeholder="Approve a refund over $500"
+          className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-700"
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+          Slug
+        </label>
+        <input
+          value={slug}
+          onChange={(e) => setSlug(e.target.value)}
+          required
+          placeholder="approve-refund-over-500"
+          className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-700 font-[var(--font-mono)]"
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+          Trigger
+        </label>
+        <input
+          value={trigger}
+          onChange={(e) => setTrigger(e.target.value)}
+          placeholder="When a customer requests a refund exceeding $500"
+          className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-700"
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+          Steps
+        </label>
+        <textarea
+          value={stepsMd}
+          onChange={(e) => setStepsMd(e.target.value)}
+          rows={6}
+          placeholder={"1. Verify the order ID in Stripe\n2. Check refund eligibility in policy doc\n3. If amount > $500, escalate to finance"}
+          className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-700"
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+          Decision criteria
+        </label>
+        <textarea
+          value={decisionCriteria}
+          onChange={(e) => setDecisionCriteria(e.target.value)}
+          rows={3}
+          placeholder="if amount < $500 → agent processes immediately"
+          className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-700"
+        />
+      </div>
+      <div>
+        <label className="block text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-1">
+          Escalation
+        </label>
+        <textarea
+          value={escalation}
+          onChange={(e) => setEscalation(e.target.value)}
+          rows={3}
+          placeholder="Escalate to #finance channel if amount > $500 or customer is VIP"
+          className="w-full px-3 py-2 border border-zinc-300 bg-transparent text-sm text-zinc-900 placeholder-zinc-400 focus:outline-none focus:border-zinc-700"
+        />
+      </div>
+      {err && (
+        <div className="text-xs text-rose-700 font-[var(--font-mono)]">
+          {err === "duplicate_slug" ? "A skill with that slug already exists." : err}
+        </div>
+      )}
+      <div className="flex items-center gap-3">
+        <button
+          type="submit"
+          disabled={busy || !title.trim() || !slug.trim()}
+          className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-[var(--brand)] bg-[var(--brand)] text-white hover:bg-[var(--brand-hover)] disabled:opacity-50"
+        >
+          {busy ? "Saving…" : isEdit ? "Save changes" : "Create skill"}
+        </button>
+        <button
+          type="button"
+          onClick={onClose}
+          className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 text-zinc-600 hover:text-zinc-900"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

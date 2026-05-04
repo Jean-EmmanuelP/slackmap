@@ -419,7 +419,7 @@ export async function bumpOccurrences(workspaceId: string, terms: string[]): Pro
   }
 }
 
-export type SkillSource = "slack" | "freshdesk";
+export type SkillSource = "slack" | "freshdesk" | "manual";
 
 export type Skill = {
   id: string;
@@ -541,6 +541,71 @@ export async function upsertSkill(
       status: "draft",
     });
   }
+}
+
+export async function createSkill(
+  workspaceId: string,
+  s: {
+    type: Skill["type"];
+    domain?: string | null;
+    slug: string;
+    title: string;
+    trigger?: string | null;
+    steps_md?: string | null;
+    decision_criteria?: string | null;
+    escalation?: string | null;
+  },
+): Promise<Skill> {
+  const now = new Date().toISOString();
+  const { data, error } = await db()
+    .from("skills")
+    .insert({
+      workspace_id: workspaceId,
+      type: s.type,
+      domain: s.domain ?? null,
+      slug: s.slug,
+      title: s.title,
+      trigger: s.trigger ?? null,
+      steps_md: s.steps_md ?? null,
+      decision_criteria: s.decision_criteria ?? null,
+      escalation: s.escalation ?? null,
+      citations: [],
+      source: "manual",
+      source_count: 1,
+      confidence: 1.0,
+      first_observed_at: now,
+      last_observed_at: now,
+      status: "active",
+    })
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Skill;
+}
+
+export async function updateSkill(
+  workspaceId: string,
+  skillId: string,
+  patch: Partial<Pick<Skill, "type" | "domain" | "slug" | "title" | "trigger" | "steps_md" | "decision_criteria" | "escalation" | "status">>,
+): Promise<Skill> {
+  const { data, error } = await db()
+    .from("skills")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("workspace_id", workspaceId)
+    .eq("id", skillId)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return data as Skill;
+}
+
+export async function deleteSkill(workspaceId: string, skillId: string): Promise<void> {
+  const { error } = await db()
+    .from("skills")
+    .delete()
+    .eq("workspace_id", workspaceId)
+    .eq("id", skillId);
+  if (error) throw error;
 }
 
 export async function markChannelSkillsExtracted(

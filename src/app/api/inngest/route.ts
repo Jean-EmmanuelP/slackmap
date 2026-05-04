@@ -8,6 +8,7 @@ import { mineChannel } from "@/inngest/mine-channel";
 import { extractPeople } from "@/inngest/extract-people";
 import { reExtractPerson } from "@/inngest/re-extract-person";
 import { extractFreshdesk } from "@/inngest/extract-freshdesk";
+import { syncFreshdeskDaily } from "@/inngest/sync-freshdesk-daily";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -20,5 +21,6 @@ export const { GET, POST, PUT } = serve({
     extractPeople,
     reExtractPerson,
     extractFreshdesk,
+    syncFreshdeskDaily,
   ],
 });

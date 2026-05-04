@@ -4,7 +4,7 @@ import { encrypt } from "@/lib/crypto";
 import { getSessionUser } from "@/lib/supabase-server";
 import { userCanAccessVault } from "@/lib/access";
 
-const ALLOWED_KINDS = new Set(["password", "account", "api_key", "url", "note", "other"]);
+const ALLOWED_KINDS = new Set(["password", "account", "api_key", "url", "note", "env_file", "other"]);
 
 // POST /api/vaults/[id]/entries — add an entry. The optional `secret` field
 // is encrypted server-side before it touches the DB. We return a sanitised

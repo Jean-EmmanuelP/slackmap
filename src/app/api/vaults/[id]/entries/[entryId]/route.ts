@@ -4,7 +4,7 @@ import { encrypt } from "@/lib/crypto";
 import { getSessionUser } from "@/lib/supabase-server";
 import { userCanAccessVault } from "@/lib/access";
 
-const ALLOWED_KINDS = new Set(["password", "account", "api_key", "url", "note", "other"]);
+const ALLOWED_KINDS = new Set(["password", "account", "api_key", "url", "note", "env_file", "other"]);
 
 // PATCH /api/vaults/[id]/entries/[entryId] — update fields. Re-encrypt secret
 // only if the client sent one. Pass empty string `""` to explicitly clear.

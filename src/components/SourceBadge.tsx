@@ -3,6 +3,7 @@ import type { SkillSource } from "@/lib/db";
 const LABELS: Record<SkillSource, string> = {
   slack: "Slack",
   freshdesk: "Freshdesk",
+  manual: "Manual",
 };
 
 export function SourceBadge({ source }: { source: SkillSource | null | undefined }) {

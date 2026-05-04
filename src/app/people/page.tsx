@@ -5,6 +5,8 @@ import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { PeopleTable } from "@/components/PeopleTable";
 import { MiningProgress } from "@/components/MiningProgress";
 import { PageHeader } from "@/components/PageHeader";
+import { getSessionUser } from "@/lib/supabase-server";
+import { userCanRead } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +17,9 @@ export default async function PeoplePage({
 }) {
   const { ws } = await searchParams;
   if (!ws) redirect("/");
+
+  const user = await getSessionUser();
+  if (user && !(await userCanRead(ws, user.id))) redirect("/");
 
   const { data: workspace } = await db()
     .from("workspaces")

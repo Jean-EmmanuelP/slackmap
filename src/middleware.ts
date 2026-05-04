@@ -1,8 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
-// Refresh Supabase session cookie on every request so the user stays signed in
-// across pages. Skips static assets + API routes that don't need the session.
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next({ request: req });
 
@@ -20,6 +18,7 @@ export async function middleware(req: NextRequest) {
       },
     },
   );
+
   await supabase.auth.getUser();
 
   return res;

@@ -22,7 +22,7 @@ export default async function VaultDetailPage({
 
   const { data: vault } = await db()
     .from("vaults")
-    .select("id, workspace_id, name, description, visibility, created_at, updated_at")
+    .select("id, workspace_id, name, description, category, visibility, created_at, updated_at")
     .eq("id", id)
     .single();
   if (!vault) redirect("/");
@@ -43,8 +43,11 @@ export default async function VaultDetailPage({
       <PageHeader
         title={vault.name as string}
         subtitle={
-          (vault.description as string | null) ??
-          "Operational entries used by AI skills to actually execute procedures."
+          [
+            vault.category as string | null,
+            (vault.description as string | null) ??
+              "Operational entries used by AI skills to actually execute procedures.",
+          ].filter(Boolean).join(" — ")
         }
       />
       <VaultDetail
