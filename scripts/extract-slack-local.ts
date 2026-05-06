@@ -145,7 +145,7 @@ async function upsertSkill(s: SkillIn) {
     const merged = [...(existing.citations ?? [])];
     for (const c of s.citations) if (!seenTs.has(c.ts)) merged.push(c), seenTs.add(c.ts);
     const newCount = (existing.source_count ?? 0) + 1;
-    const confidence = Math.min(0.99, 0.4 + 0.1 * Math.log2(newCount + 1));
+    const confidence = 1.0;
     await update(
       "skills",
       { id: `eq.${existing.id}` },
@@ -178,7 +178,7 @@ async function upsertSkill(s: SkillIn) {
       citations: s.citations,
       source: "slack",
       source_count: 1,
-      confidence: 0.5,
+      confidence: 1.0,
       first_observed_at: now,
       last_observed_at: now,
       status: "draft",
@@ -670,7 +670,7 @@ async function main() {
         count: c.count,
       })),
       message_count: profile.total,
-      confidence: Math.min(0.99, 0.4 + 0.1 * Math.log2(profile.total + 1)),
+      confidence: 1.0,
       status: "draft",
       updated_at: new Date().toISOString(),
     };

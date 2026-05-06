@@ -505,7 +505,11 @@ export async function upsertSkill(
       }
     }
     const newSourceCount = (existing.source_count as number) + 1;
-    const confidence = Math.min(0.99, 0.4 + 0.1 * Math.log2(newSourceCount + 1));
+    // A skill we observed in actual messages/tickets is by definition real —
+    // confidence stays at 1.0. The decision criteria + escalation paths ARE
+    // the validation. Lower the score only when explicitly marked as draft
+    // (e.g. user-flagged for review) — never as a decay over time.
+    const confidence = 1.0;
 
     await db()
       .from("skills")
@@ -537,7 +541,7 @@ export async function upsertSkill(
       citations: s.citations,
       source: s.source ?? "slack",
       source_count: 1,
-      confidence: 0.5,
+      confidence: 1.0,
       first_observed_at: now,
       last_observed_at: now,
       status: "draft",
@@ -656,7 +660,7 @@ export async function mergeDraftSkills(workspaceId: string, logger?: { info: (ms
       }
 
       const newSourceCount = (keeper.source_count as number) + (goner.source_count as number);
-      const newConfidence = Math.min(0.99, 0.4 + 0.1 * Math.log2(newSourceCount + 1));
+      const newConfidence = 1.0;
 
       await db().from("skills").update({
         citations: mergedCitations,

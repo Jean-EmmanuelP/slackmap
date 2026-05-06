@@ -51,6 +51,7 @@ export function SkillsTable({
   const [typeFilter, setTypeFilter] = useState<"all" | Skill["type"]>("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | SkillSource>("all");
   const [showDrafts, setShowDrafts] = useState(false);
+  const [showConfidence, setShowConfidence] = useState(false);
   const [selected, setSelected] = useState<Skill | null>(null);
   const [creating, setCreating] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -157,6 +158,17 @@ export function SkillsTable({
             Candidates ({draftSkills.length})
           </button>
         )}
+        <button
+          onClick={() => setShowConfidence((v) => !v)}
+          title="Toggle confidence score column"
+          className={`text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border transition-colors ${
+            showConfidence
+              ? "border-zinc-900 bg-zinc-900 text-[var(--paper)]"
+              : "border-zinc-300 text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
+          }`}
+        >
+          {showConfidence ? "Hide confidence" : "Show confidence"}
+        </button>
         <span className="text-xs text-zinc-500 font-[var(--font-mono)]">
           {filtered.length} {showDrafts ? "skills" : "validated"}
         </span>
@@ -209,7 +221,10 @@ export function SkillsTable({
                         )}
                       </div>
                       <div className="shrink-0 flex items-center gap-3">
-                        <ConfidenceBar value={s.confidence} />
+                        <span className="text-[10px] uppercase tracking-wider text-zinc-500 font-[var(--font-mono)] tabular-nums">
+                          {s.source_count} {s.source_count === 1 ? "source" : "sources"}
+                        </span>
+                        {showConfidence && <ConfidenceBar value={s.confidence} />}
                         <a
                           href={`/api/workspace/${workspaceId}/skills/${s.slug}`}
                           target="_blank"
@@ -246,13 +261,14 @@ export function SkillsTable({
 
 function ConfidenceBar({ value }: { value: number }) {
   const pct = Math.round(value * 100);
-  const color = value >= 0.75 ? "bg-emerald-500" : value >= 0.5 ? "bg-amber-500" : "bg-rose-500";
   return (
     <div className="inline-flex items-center gap-2">
-      <div className="w-16 h-1.5 bg-zinc-200 rounded-full overflow-hidden">
-        <div className={`h-full ${color}`} style={{ width: `${pct}%` }} />
+      <div className="w-14 h-0.5 bg-zinc-200 overflow-hidden">
+        <div className="h-full bg-zinc-900" style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs text-zinc-600 w-8 text-right">{pct}%</span>
+      <span className="text-[10px] tabular-nums font-[var(--font-mono)] text-zinc-600 w-8 text-right">
+        {pct}%
+      </span>
     </div>
   );
 }
