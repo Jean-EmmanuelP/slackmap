@@ -39,10 +39,18 @@ Rules:
   evidence is enough to commit to a sharper title (e.g. "Backend Engineer", "Customer
   Success Lead", "Product Designer"). Only fall back to a generic label when truly
   ambiguous after considering tools, expertise, and channels.
-- Tools = concrete software/platforms NAMED IN MESSAGES (Notion, Stripe, Figma,
-  Linear, GitHub, Zendesk, etc.). STRICT: each tool you list must appear in at
-  LEAST 2 of their sample messages. If you can only count 1 mention, drop it.
-  Skip generic tools like "Slack", "Gmail", "Excel" unless notably central.
+- Tools = concrete software/platforms / SaaS the person is observed working
+  WITH (Notion, Stripe, Figma, Linear, GitHub, Zendesk, Freshdesk, OVH,
+  TestFlight, App Store, Webflow, Shopify, Google Drive, Stripe Dashboard,
+  PagerDuty, Datadog, Customer.io, etc.).
+  Include a tool if EITHER: (a) it's named ≥1× and the surrounding message
+  shows them doing operational work with it ("je viens de pousser sur OVH",
+  "j'ai update la promo dans Stripe Dashboard", "TestFlight build cassé") —
+  count this as evidence; OR (b) it's named ≥2× across messages.
+  Infer responsibly: if someone discusses "le pricing dans le store" they
+  likely use the App Store / Play Store dashboards; if they ship code daily
+  they likely use GitHub. Use the channel context as a tiebreaker.
+  Skip ultra-generic tools like "Slack", "Gmail", "Excel" unless notably central.
 - Expertise = topical domains they engage in with depth (not surface-level mentions).
 - summary names WHAT THEY SPECIFICALLY OWN — not "contributes to the team" or
   "active in many channels". Examples:
