@@ -99,7 +99,7 @@ export const reconcileDaily = inngest.createFunction(
             if (flatMsgs.length >= 10) {
               const candidates = extractAcronymCandidates(flatMsgs);
               if (candidates.length > 0) {
-                const defined = await llmDefineTerms(candidates.slice(0, 20), "daily-reconcile", llmKey).catch(() => []);
+                const defined = await llmDefineTerms(candidates.slice(0, 20), "daily-reconcile", llmKey, ws).catch(() => []);
                 if (defined.length > 0) {
                   await upsertGlossary(
                     ws.id,
@@ -160,6 +160,7 @@ export const reconcileDaily = inngest.createFunction(
                     totalMessages: u.total_messages,
                   },
                   llmKey,
+                  ws,
                 );
 
                 await upsertPerson(ws.id, {

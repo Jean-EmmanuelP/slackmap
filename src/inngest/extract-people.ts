@@ -125,7 +125,7 @@ export const extractPeople = inngest.createFunction(
           topChannels: topChannels.map((tc) => ({ name: tc.name, purpose: tc.purpose, count: tc.count })),
           sampleMessages: samples,
           totalMessages: u.total_messages,
-        }, apiKey).catch(() => ({ role: null, summary: null, tools: [], expertise: [] }));
+        }, apiKey, ws).catch(() => ({ role: null, summary: null, tools: [], expertise: [] }));
 
         await upsertPerson(workspaceId, {
           slack_user_id: u.slack_user_id,
@@ -162,7 +162,7 @@ export const extractPeople = inngest.createFunction(
             tools: extracted.tools,
             expertise: extracted.expertise,
             topChannels: topChannels.map((tc) => ({ name: tc.name, purpose: tc.purpose })),
-          }, apiKey).catch(() => []);
+          }, apiKey, ws).catch(() => []);
           for (const s of personSkills) {
             await upsertSkill(workspaceId, s);
           }

@@ -1,4 +1,5 @@
 import { llmCall, parseJsonBlock } from "./anthropic";
+import { buildCompanyContextBlock, type CompanyContextWorkspace } from "./company-context-block";
 
 type Msg = { ts: string; user?: string; text?: string };
 
@@ -75,6 +76,7 @@ export async function llmDefineTerms(
   candidates: Candidate[],
   channelId: string,
   apiKey?: string,
+  companyContext?: CompanyContextWorkspace | null,
 ): Promise<DefinedEntry[]> {
   if (candidates.length === 0) return [];
 
@@ -96,7 +98,7 @@ export async function llmDefineTerms(
       .join("\n\n");
 
     const text = await llmCall({
-      system: DEFINE_SYSTEM,
+      system: buildCompanyContextBlock(companyContext) + DEFINE_SYSTEM,
       userMessage: `Define these ${batch.length} terms:\n\n${userMsg}`,
       maxTokens: 2048,
       model: "extract",

@@ -103,7 +103,7 @@ export const mineChannel = inngest.createFunction(
       await step.run("extract-glossary", async () => {
         const candidates = extractAcronymCandidates(messages);
         if (candidates.length === 0) return;
-        const entries = await llmDefineTerms(candidates, ch.slack_channel_id, apiKey).catch(() => []);
+        const entries = await llmDefineTerms(candidates, ch.slack_channel_id, apiKey, ws).catch(() => []);
         if (entries.length > 0) await upsertGlossary(workspaceId, entries);
       });
     }

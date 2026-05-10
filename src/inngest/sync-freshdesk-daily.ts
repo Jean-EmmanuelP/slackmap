@@ -23,7 +23,9 @@ export const syncFreshdeskDaily = inngest.createFunction(
   async ({ step, logger }) => {
     const { data: workspaces } = await db()
       .from("workspaces")
-      .select("id, freshdesk_domain, freshdesk_connected_at")
+      .select(
+        "id, freshdesk_domain, freshdesk_connected_at, company_name, company_website, company_description, company_industry, company_audience, company_tools, company_resolved_at",
+      )
       .not("freshdesk_domain", "is", null);
 
     if (!workspaces || workspaces.length === 0) return;
@@ -65,7 +67,7 @@ export const syncFreshdeskDaily = inngest.createFunction(
             const skills = await extractSkillsFromTickets(fd, llmKey, groupTickets, {
               groupLabel,
               convosPerTicket: 6,
-            });
+            }, ws);
             for (const s of skills) {
               await upsertSkill(ws.id, { ...s, source: "freshdesk" });
             }
@@ -73,7 +75,7 @@ export const syncFreshdeskDaily = inngest.createFunction(
           }
 
           const subjects = tickets.map((t) => `${t.subject}\n${(t.description_text ?? "").slice(0, 500)}`);
-          const entries = await extractGlossaryFromFreshdesk(llmKey, subjects.slice(0, 30));
+          const entries = await extractGlossaryFromFreshdesk(llmKey, subjects.slice(0, 30), ws);
           if (entries.length > 0) {
             await upsertGlossary(
               ws.id,

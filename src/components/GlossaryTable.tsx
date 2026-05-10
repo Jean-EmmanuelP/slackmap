@@ -6,12 +6,26 @@ import { SourceBadge } from "./SourceBadge";
 
 const CATEGORIES = ["all", "product", "acronym", "jargon", "tool", "team"] as const;
 
+// Translation lookup against glossary_entries.translations JSONB.
+function tr(e: GlossaryEntry, lang: string | undefined): string {
+  const code = (lang ?? "en").toLowerCase();
+  if (code === "en") return e.definition;
+  type WithTranslations = GlossaryEntry & {
+    translations?: Record<string, Record<string, string | null | undefined>> | null;
+  };
+  const t = (e as WithTranslations).translations?.[code]?.definition;
+  if (typeof t === "string" && t.trim().length > 0) return t;
+  return e.definition;
+}
+
 export function GlossaryTable({
   entries,
   teamDomain,
+  lang,
 }: {
   entries: GlossaryEntry[];
   teamDomain: string | null;
+  lang?: string;
 }) {
   const [q, setQ] = useState("");
   const [cat, setCat] = useState<(typeof CATEGORIES)[number]>("all");
@@ -21,9 +35,13 @@ export function GlossaryTable({
     return entries.filter((e) => {
       if (cat !== "all" && e.category !== cat) return false;
       if (ql.length === 0) return true;
-      return e.term.toLowerCase().includes(ql) || e.definition.toLowerCase().includes(ql);
+      return (
+        e.term.toLowerCase().includes(ql) ||
+        e.definition.toLowerCase().includes(ql) ||
+        tr(e, lang).toLowerCase().includes(ql)
+      );
     });
-  }, [entries, q, cat]);
+  }, [entries, q, cat, lang]);
 
   return (
     <div className="flex-1 flex flex-col">
@@ -71,7 +89,7 @@ export function GlossaryTable({
             {filtered.map((e) => (
               <tr key={e.id} className="border-t border-zinc-200 hover:bg-zinc-100/50">
                 <td className="px-6 py-3 font-[var(--font-mono)] text-zinc-900">{e.term}</td>
-                <td className="px-6 py-3 text-zinc-700">{e.definition}</td>
+                <td className="px-6 py-3 text-zinc-700">{tr(e, lang)}</td>
                 <td className="px-6 py-3"><SourceBadge source={e.source} /></td>
                 <td className="px-6 py-3">
                   <span className="inline-block px-2 py-0.5 border border-zinc-300 text-[10px] uppercase tracking-wider text-zinc-600 font-[var(--font-mono)]">

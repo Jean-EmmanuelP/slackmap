@@ -1,6 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CompanyContextCard, type CompanyContext } from "@/components/CompanyContextCard";
+import { FreshdeskSignalsPanel } from "@/components/FreshdeskSignalsPanel";
+import { StripeKeyModal } from "@/components/StripeKeyModal";
+import { t } from "@/lib/i18n-ui";
 
 type Counts = {
   channels: number;
@@ -13,6 +17,40 @@ type Counts = {
 
 type Sources = { slack: boolean; freshdesk: boolean };
 
+export type LiveSignals = {
+  lastSlackEventAt: string | null;
+  lastMinedChannel: { name: string; minedAt: string | null; messageCount: number } | null;
+  lastPerson: { displayName: string; role: string | null; lastSeenAt: string | null } | null;
+  freshdeskConnectedAt: string | null;
+  freshdeskStatus: string | null;
+  recentSkills: Array<{
+    slug: string;
+    title: string;
+    type: string;
+    source: "slack" | "freshdesk" | string;
+    lastObservedAt: string | null;
+    appliedCount: number;
+    lastAppliedAt: string | null;
+    effectiveConfidence: number;
+  }>;
+  emergingPatterns: Array<{
+    domain: string;
+    count: number;
+    slackCount: number;
+    freshdeskCount: number;
+    samples: string[];
+    slugs: string[];
+  }>;
+  staleSkillsCount: number;
+  recurringFreshdesk: Array<{
+    slug: string;
+    title: string;
+    sourceCount: number;
+    appliedCount: number;
+    domain: string;
+  }>;
+};
+
 type Invite = {
   id: string;
   token: string;
@@ -23,67 +61,31 @@ type Invite = {
   created_at: string;
 };
 
-const CONNECTORS = [
-  {
-    name: "Slack",
-    desc: "Channel messages, threads, files — your team's daily operating system.",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313z" fill="#E01E5A"/>
-        <path d="M8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312z" fill="#36C5F0"/>
-        <path d="M18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.163 0a2.528 2.528 0 0 1 2.523 2.522v6.312z" fill="#2EB67D"/>
-        <path d="M15.163 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.163 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.163a2.528 2.528 0 0 1-2.522 2.523h-6.315z" fill="#ECB22E"/>
-      </svg>
-    ),
-    connectLabel: "Connected via OAuth",
-    action: "connected" as const,
-  },
-  {
-    name: "Freshdesk",
-    desc: "Support tickets, solution articles, agent profiles — your customer support brain.",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 64 64" aria-hidden="true">
-        <path d="M31.9 0h24.036A8 8 0 0 1 64 8.073V32.1C64 49.722 49.722 64 32.1 64h-.182A31.89 31.89 0 0 1 0 32.109C0 14.437 14.254.182 31.9 0z" fill="#25c16f"/>
-        <path d="M31.9 14.255c-8.093 0-14.654 6.56-14.654 14.654v9.964c.058 2.667 2.206 4.815 4.873 4.873h4.145V32.3h-5.6v-3.2c.34-6.026 5.327-10.74 11.364-10.74S43.04 23.065 43.38 29.1v3.2H37.7v11.454h3.745v.182c-.04 2.474-2.035 4.47-4.5 4.5h-4.473c-.364 0-.764.182-.764.545a.8.8 0 0 0 .764.764h4.5c3.205-.02 5.798-2.613 5.818-5.818v-.364a4.8 4.8 0 0 0 3.745-4.727V29.1c.182-8.254-6.364-14.836-14.654-14.836z" fill="#fff"/>
-      </svg>
-    ),
-    connectLabel: "Connect Freshdesk",
-    action: "atlas" as const,
-  },
-  {
-    name: "Notion",
-    desc: "Wikis, docs, meeting notes — your company's long-term memory.",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="#000" aria-hidden="true">
-        <path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z"/>
-      </svg>
-    ),
-    connectLabel: null,
-    action: "coming_soon" as const,
-  },
-  {
-    name: "Linear",
-    desc: "Issues, projects, cycles — your product & engineering pipeline.",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="#5E6AD2" aria-hidden="true">
-        <path d="M2.886 4.18A11.982 11.982 0 0 1 11.99 0C18.624 0 24 5.376 24 12.009c0 3.64-1.62 6.903-4.18 9.105L2.887 4.18ZM1.817 5.626l16.556 16.556c-.524.33-1.075.62-1.65.866L.951 7.277c.247-.575.537-1.126.866-1.65ZM.322 9.163l14.515 14.515c-.71.172-1.443.282-2.195.322L0 11.358a12 12 0 0 1 .322-2.195Zm-.17 4.862 9.823 9.824a12.02 12.02 0 0 1-9.824-9.824Z"/>
-      </svg>
-    ),
-    connectLabel: null,
-    action: "coming_soon" as const,
-  },
-  {
-    name: "GitHub",
-    desc: "PRs, issues, discussions — your engineering decisions & context.",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-        <path d="M12 2C6.477 2 2 6.477 2 12c0 4.42 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.866-.013-1.7-2.782.603-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.462-1.11-1.462-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.831.092-.646.35-1.086.636-1.336-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.268 2.75 1.026A9.578 9.578 0 0 1 12 6.836c.85.004 1.705.114 2.504.336 1.909-1.294 2.747-1.026 2.747-1.026.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.161 22 16.416 22 12c0-5.523-4.477-10-10-10z" fill="#24292F"/>
-      </svg>
-    ),
-    connectLabel: null,
-    action: "coming_soon" as const,
-  },
-];
+// Tools we know how to mine OR have on the roadmap. Maps a tool name (matched
+// case-insensitively against `company_tools`) to its connection capability.
+type IntegrationStatus = "connected" | "available" | "coming_soon";
+type IntegrationMeta = { canonical: string; status: IntegrationStatus };
+
+const INTEGRATIONS: Record<string, IntegrationMeta> = {
+  slack: { canonical: "Slack", status: "connected" },
+  freshdesk: { canonical: "Freshdesk", status: "available" },
+  gmail: { canonical: "Gmail", status: "coming_soon" },
+  asana: { canonical: "Asana", status: "coming_soon" },
+  notion: { canonical: "Notion", status: "coming_soon" },
+  linear: { canonical: "Linear", status: "coming_soon" },
+  jira: { canonical: "Jira", status: "coming_soon" },
+  github: { canonical: "GitHub", status: "coming_soon" },
+  gitlab: { canonical: "GitLab", status: "coming_soon" },
+  "google drive": { canonical: "Google Drive", status: "coming_soon" },
+  figma: { canonical: "Figma", status: "coming_soon" },
+  stripe: { canonical: "Stripe", status: "available" },
+  hubspot: { canonical: "HubSpot", status: "coming_soon" },
+  intercom: { canonical: "Intercom", status: "coming_soon" },
+  zendesk: { canonical: "Zendesk", status: "coming_soon" },
+  zoom: { canonical: "Zoom", status: "coming_soon" },
+  outlook: { canonical: "Outlook", status: "coming_soon" },
+  "microsoft teams": { canonical: "Microsoft Teams", status: "coming_soon" },
+};
 
 export function HomeDashboard({
   workspaceId,
@@ -93,6 +95,11 @@ export function HomeDashboard({
   counts,
   currentUserId,
   isAdmin,
+  companyContext,
+  originUrl,
+  companyTools,
+  liveSignals,
+  lang,
 }: {
   workspaceId: string;
   workspaceName: string;
@@ -101,113 +108,75 @@ export function HomeDashboard({
   counts: Counts;
   currentUserId: string | null;
   isAdmin: boolean;
+  companyContext?: CompanyContext;
+  originUrl: string;
+  companyTools?: string[] | null;
+  liveSignals?: LiveSignals;
+  lang?: string;
 }) {
+  // Note: HomeDashboard sub-components destructure `lang` from this scope
+  // via closure when needed; props are explicit when crossing component
+  // boundaries (ToolStrip, LiveSignalsSection, etc.) below.
   void currentUserId;
   const [tab, setTab] = useState<"cli" | "agent" | "api">("cli");
 
   const totalEntities = counts.channels + counts.people + counts.glossary;
   const miningPct = counts.channels > 0 ? Math.round((counts.minedChannels / counts.channels) * 100) : 0;
 
-  function connectorStatus(name: string): "connected" | "atlas" | "coming_soon" {
-    if (name === "Slack" && sources.slack) return "connected";
-    if (name === "Freshdesk" && sources.freshdesk) return "connected";
-    if (name === "Freshdesk") return "atlas";
-    return "coming_soon";
-  }
-
-  function connectorCount(name: string): number | undefined {
-    if (name === "Slack") return counts.skillsBySource.slack;
-    if (name === "Freshdesk") return counts.skillsBySource.freshdesk;
-    return undefined;
-  }
-
   return (
     <div className="flex-1 px-8 py-8 overflow-auto">
       <div className="flex items-center gap-3">
         <h1 className="text-3xl font-medium tracking-tight text-zinc-900">{workspaceName}</h1>
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-zinc-300 text-zinc-600 text-[11px] font-[var(--font-mono)] uppercase tracking-wider">
-          Organization
+          {t("dashboard.orgTag", lang)}
         </span>
       </div>
       <p className="mt-1 text-sm text-zinc-500">
-        Your company brain — connect your tools to extract knowledge.
+        {t("dashboard.subtitle", lang)}
       </p>
 
       <div className="mt-8 grid grid-cols-12 gap-4">
-        {/* Sources — full width, the hero section */}
-        <section className="col-span-12 border border-zinc-200 p-6">
-          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 mb-4 font-[var(--font-mono)]">
-            Sources
-          </div>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            {CONNECTORS.map((c) => {
-              const status = connectorStatus(c.name);
-              const count = connectorCount(c.name);
-              return (
-                <div
-                  key={c.name}
-                  className={`border p-4 flex flex-col gap-3 ${
-                    status === "connected"
-                      ? "border-emerald-200 bg-emerald-50/30"
-                      : status === "atlas"
-                        ? "border-zinc-200 hover:border-zinc-400 cursor-pointer"
-                        : "border-zinc-100 bg-zinc-50/50 opacity-60"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    {c.icon}
-                    <span className="text-sm font-medium text-zinc-900">{c.name}</span>
-                  </div>
-                  <p className="text-xs text-zinc-500 leading-relaxed flex-1">{c.desc}</p>
-                  <div className="mt-auto">
-                    {status === "connected" && (
-                      <div className="flex items-center justify-between">
-                        <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-emerald-700 font-[var(--font-mono)]">
-                          <span className="size-1.5 rounded-full bg-emerald-500" />
-                          Connected
-                        </span>
-                        {count !== undefined && (
-                          <span className="text-xs text-zinc-500 tabular-nums font-[var(--font-mono)]">
-                            {count} skills
-                          </span>
-                        )}
-                      </div>
-                    )}
-                    {status === "atlas" && (
-                      <a
-                        href={`/atlas?ws=${workspaceId}`}
-                        className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-700 font-[var(--font-mono)] hover:text-zinc-900"
-                      >
-                        <span className="size-1.5 rounded-full bg-zinc-400" />
-                        Connect →
-                      </a>
-                    )}
-                    {status === "coming_soon" && (
-                      <span className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-zinc-400 font-[var(--font-mono)]">
-                        <span className="size-1.5 rounded-full bg-zinc-300" />
-                        Coming soon
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+        {companyContext?.resolvedAt && (
+          <CompanyContextCard workspaceId={workspaceId} context={companyContext} lang={lang} />
+        )}
+
+        <ToolStrip
+          workspaceId={workspaceId}
+          companyTools={companyTools ?? null}
+          sourcesConnected={sources}
+          counts={counts.skillsBySource}
+          lang={lang}
+        />
+
+        {liveSignals && (
+          <LiveSignalsSection
+            workspaceId={workspaceId}
+            originUrl={originUrl}
+            signals={liveSignals}
+            sources={sources}
+            lang={lang}
+          />
+        )}
+
+        <FreshdeskSignalsPanel
+          workspaceId={workspaceId}
+          freshdeskConnected={sources.freshdesk}
+          lang={lang}
+        />
 
         {/* Stats strip */}
         <section className="col-span-12 grid grid-cols-2 md:grid-cols-5 gap-px bg-zinc-200 border border-zinc-200">
-          <Stat label="Channels" value={counts.channels} hint={`${counts.minedChannels} mined`} />
-          <Stat label="People" value={counts.people} />
-          <Stat label="Skills" value={counts.skills} hint="exportable" />
-          <Stat label="Glossary" value={counts.glossary} hint="terms" />
-          <Stat label="Entities" value={totalEntities} hint="mapped" />
+          <Stat label={t("stat.channels", lang)} value={counts.channels} hint={t("stat.channels.hint", lang, { n: counts.minedChannels })} />
+          <Stat label={t("stat.people", lang)} value={counts.people} />
+          <Stat label={t("stat.skills", lang)} value={counts.skills} hint={t("stat.skills.hint", lang)} />
+          <Stat label={t("stat.glossary", lang)} value={counts.glossary} hint={t("stat.glossary.hint", lang)} />
+          <Stat label={t("stat.entities", lang)} value={totalEntities} hint={t("stat.entities.hint", lang)} />
         </section>
 
         {/* Mining progress */}
         <section className="col-span-12 lg:col-span-6 border border-zinc-200 p-5">
           <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 mb-3 font-[var(--font-mono)]">
-            Extraction progress
+            {t("extraction.progress", lang)}
           </div>
           <div className="flex items-center gap-3 mb-2">
             <div className="flex-1 h-2 bg-zinc-100 rounded-full overflow-hidden">
@@ -219,7 +188,7 @@ export function HomeDashboard({
             <span className="text-sm font-medium text-zinc-900 tabular-nums">{miningPct}%</span>
           </div>
           <p className="text-xs text-zinc-500">
-            {counts.minedChannels} of {counts.channels} channels mined — extracting entities, relationships, and skills from each.
+            {t("extraction.progressHint", lang, { done: counts.minedChannels, total: counts.channels })}
           </p>
         </section>
 
@@ -227,17 +196,17 @@ export function HomeDashboard({
         <section className="col-span-12 lg:col-span-6 border border-zinc-200 p-5">
           <div className="flex items-center justify-between">
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
-              Extraction engine
+              {t("extraction.engine", lang)}
             </div>
             <span className={`size-1.5 rounded-full ${anthropicKeySet ? "bg-emerald-500" : "bg-amber-500"}`} />
           </div>
           <div className="mt-2 text-sm text-zinc-900">
-            {anthropicKeySet ? "Anthropic key active" : "No Anthropic key yet"}
+            {anthropicKeySet ? t("extraction.anthropicSet", lang) : t("extraction.anthropicMissing", lang)}
           </div>
           <p className="mt-1 text-xs text-zinc-500 leading-relaxed">
             {anthropicKeySet
-              ? "Skills + people extraction runs automatically when you mine channels."
-              : "Add your sk-ant-... key in the Atlas toolbar to enable extraction."}
+              ? t("extraction.anthropicSetHint", lang)
+              : t("extraction.anthropicMissingHint", lang)}
           </p>
         </section>
 
@@ -245,11 +214,9 @@ export function HomeDashboard({
         <section className="col-span-12 lg:col-span-8 border border-zinc-200 p-6">
           <div className="flex items-baseline gap-2">
             <span className="text-zinc-400 font-[var(--font-mono)]">›_</span>
-            <h3 className="text-lg font-medium text-zinc-900">Use your skills in any AI agent</h3>
+            <h3 className="text-lg font-medium text-zinc-900">{t("skillsBundle.exportTitle", lang)}</h3>
           </div>
-          <p className="mt-1 text-sm text-zinc-500">
-            Drop your extracted skills into Claude Code, Cursor, or any agent. They run with your company&apos;s rules.
-          </p>
+          <p className="mt-1 text-sm text-zinc-500">{t("skillsBundle.exportSubtitle", lang)}</p>
 
           <div className="mt-4 flex border-b border-zinc-200">
             {(["cli", "agent", "api"] as const).map((t) => (
@@ -268,9 +235,9 @@ export function HomeDashboard({
           </div>
 
           <div className="mt-4">
-            {tab === "cli" && <CliSnippet workspaceId={workspaceId} />}
-            {tab === "agent" && <AgentSnippet workspaceId={workspaceId} />}
-            {tab === "api" && <ApiSnippet workspaceId={workspaceId} />}
+            {tab === "cli" && <CliSnippet workspaceId={workspaceId} originUrl={originUrl} />}
+            {tab === "agent" && <AgentSnippet workspaceId={workspaceId} originUrl={originUrl} />}
+            {tab === "api" && <ApiSnippet workspaceId={workspaceId} originUrl={originUrl} />}
           </div>
         </section>
 
@@ -278,41 +245,41 @@ export function HomeDashboard({
         <section className="col-span-12 lg:col-span-4 border border-zinc-200 p-5">
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
-              Skills bundle
+              {t("skillsBundle.title", lang)}
             </span>
             <a
               href={`/api/workspace/${workspaceId}/skills.zip`}
               className="text-xs text-zinc-700 hover:text-zinc-900 underline underline-offset-2"
             >
-              Download all
+              {t("skillsBundle.downloadAll", lang)}
             </a>
           </div>
           <div className="mt-2 text-sm text-zinc-900">
-            {counts.skills} skills · ready for Claude
+            {t("skillsBundle.ready", lang, { n: counts.skills })}
           </div>
           <div className="mt-1 text-xs text-zinc-500 leading-relaxed">
-            ~/.claude/skills/&lt;workspace&gt;/ — restart Claude Code to load.
+            {t("skillsBundle.path", lang)}
           </div>
           <div className="mt-4 pt-4 border-t border-zinc-100">
             <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mb-2">
-              What&apos;s inside
+              {t("skillsBundle.whatsInside", lang)}
             </div>
             <ul className="space-y-1 text-xs text-zinc-600">
               <li className="flex items-center gap-2">
                 <span className="size-1 rounded-full bg-violet-400" />
-                Refund procedures &amp; exceptions
+                {t("skillsBundle.refunds", lang)}
               </li>
               <li className="flex items-center gap-2">
                 <span className="size-1 rounded-full bg-blue-400" />
-                Deploy &amp; incident playbooks
+                {t("skillsBundle.deploy", lang)}
               </li>
               <li className="flex items-center gap-2">
                 <span className="size-1 rounded-full bg-emerald-400" />
-                Escalation paths &amp; owners
+                {t("skillsBundle.escalation", lang)}
               </li>
               <li className="flex items-center gap-2">
                 <span className="size-1 rounded-full bg-amber-400" />
-                Implicit rules &amp; workarounds
+                {t("skillsBundle.implicit", lang)}
               </li>
             </ul>
           </div>
@@ -340,13 +307,8 @@ function Stat({ label, value, hint }: { label: string; value: number; hint?: str
   );
 }
 
-function originUrl(): string {
-  if (typeof window === "undefined") return "https://slackmap-livid.vercel.app";
-  return window.location.origin;
-}
-
-function CliSnippet({ workspaceId }: { workspaceId: string }) {
-  const url = `${originUrl()}/api/workspace/${workspaceId}/skills.zip`;
+function CliSnippet({ workspaceId, originUrl }: { workspaceId: string; originUrl: string }) {
+  const url = `${originUrl}/api/workspace/${workspaceId}/skills.zip`;
   const cmd = `curl -fsSL "${url}" -o /tmp/slackmap-skills.zip && \\\n  unzip -oq /tmp/slackmap-skills.zip -d ~/.claude/skills/ && \\\n  echo "Installed. Restart Claude Code to load."`;
   return (
     <div>
@@ -356,8 +318,8 @@ function CliSnippet({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-function AgentSnippet({ workspaceId }: { workspaceId: string }) {
-  const url = `${originUrl()}/api/workspace/${workspaceId}/skills.zip`;
+function AgentSnippet({ workspaceId, originUrl }: { workspaceId: string; originUrl: string }) {
+  const url = `${originUrl}/api/workspace/${workspaceId}/skills.zip`;
   const cmd = `# Cursor / Aider / custom agents\ncurl -fsSL "${url}" -o skills.zip && \\\n  unzip -oq skills.zip -d ./skills/`;
   return (
     <div>
@@ -367,8 +329,8 @@ function AgentSnippet({ workspaceId }: { workspaceId: string }) {
   );
 }
 
-function ApiSnippet({ workspaceId }: { workspaceId: string }) {
-  const cmd = `GET ${originUrl()}/api/workspace/${workspaceId}/skills/handle-customer-refund\nAccept: text/markdown`;
+function ApiSnippet({ workspaceId, originUrl }: { workspaceId: string; originUrl: string }) {
+  const cmd = `GET ${originUrl}/api/workspace/${workspaceId}/skills/handle-customer-refund\nAccept: text/markdown`;
   return (
     <div>
       <p className="text-sm text-zinc-600 mb-2">Fetch a single skill as markdown — just-in-time guidance for your agent:</p>
@@ -391,6 +353,601 @@ function Code({ value }: { value: string }) {
         Copy
       </button>
     </div>
+  );
+} // Note: this `Copy` is local to a code-snippet button used only on the dev-tab UI; could be wired with t() if a polished translation is needed there.
+
+// "Live signals" — the proof-of-life section. Surfaces the most recent
+// activity per source (Slack event, mined channel, extracted skill, person
+// updated) so the user feels the brain is being kept fresh, not just stored.
+// Below it, "Recent automations" lists the freshest extracted skills as
+// candidates that can be installed into Claude Code via one curl command.
+function LiveSignalsSection({
+  workspaceId,
+  originUrl,
+  signals,
+  sources,
+  lang,
+}: {
+  workspaceId: string;
+  originUrl: string;
+  signals: LiveSignals;
+  sources: Sources;
+  lang?: string;
+}) {
+  const slackPulse = signals.lastSlackEventAt
+    ? `${formatRelative(signals.lastSlackEventAt)}`
+    : signals.lastMinedChannel?.minedAt
+      ? `mined ${formatRelative(signals.lastMinedChannel.minedAt)}`
+      : "no events yet";
+
+  const freshdeskPulse = signals.freshdeskConnectedAt
+    ? `connected ${formatRelative(signals.freshdeskConnectedAt)}` +
+      (signals.freshdeskStatus && signals.freshdeskStatus !== "idle" ? ` · ${signals.freshdeskStatus}` : "")
+    : "not connected";
+
+  return (
+    <>
+      {/* Live signals — split per source */}
+      <section className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-px bg-zinc-200 border border-zinc-200">
+        <SignalCard
+          source={t("signals.slack", lang)}
+          live={sources.slack}
+          pulse={slackPulse}
+          lang={lang}
+          detail={
+            signals.lastMinedChannel ? (
+              <>
+                {t("signals.lastMined", lang)}: <span className="text-zinc-900">#{signals.lastMinedChannel.name}</span>
+                <span className="text-zinc-500"> ({signals.lastMinedChannel.messageCount} msgs)</span>
+              </>
+            ) : null
+          }
+          person={signals.lastPerson}
+        />
+        <SignalCard
+          source={t("signals.freshdesk", lang)}
+          live={sources.freshdesk}
+          pulse={freshdeskPulse}
+          lang={lang}
+          detail={null}
+          person={null}
+        />
+      </section>
+
+      {/* High-recurrence Freshdesk patterns — auto-reply agent candidates */}
+      {signals.recurringFreshdesk.length > 0 && (
+        <section className="col-span-12 border border-zinc-200 p-5 bg-emerald-50/30">
+          <div className="flex items-baseline justify-between mb-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-emerald-800 font-[var(--font-mono)]">
+                High-recurrence Freshdesk patterns
+              </div>
+              <p className="mt-1 text-xs text-zinc-600">
+                These intents come up across many tickets — install one as a Claude skill and an agent can auto-draft replies.
+              </p>
+            </div>
+          </div>
+          <ul className="divide-y divide-emerald-100">
+            {signals.recurringFreshdesk.map((p) => (
+              <li key={p.slug} className="flex items-center gap-3 py-2.5">
+                <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-emerald-800 tabular-nums w-12">
+                  {p.sourceCount}× tickets
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm text-zinc-900 truncate">{p.title}</div>
+                  <div className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+                    {p.domain}
+                    {p.appliedCount > 0 && ` · agent used ${p.appliedCount}×`}
+                  </div>
+                </div>
+                <a
+                  href={`/api/workspace/${workspaceId}/skills/${p.slug}`}
+                  className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-2 py-1 border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800"
+                >
+                  View skill →
+                </a>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {/* Stale skills — quiet warning */}
+      {signals.staleSkillsCount > 0 && (
+        <section className="col-span-12 border border-amber-200 bg-amber-50/40 px-4 py-2.5 flex items-center gap-3 text-xs">
+          <span className="size-1.5 rounded-full bg-amber-400" />
+          <span className="text-zinc-700">
+            <span className="font-medium text-amber-900">{signals.staleSkillsCount} skill{signals.staleSkillsCount > 1 ? "s" : ""}</span>{" "}
+            haven&apos;t been re-observed recently — your team may have changed how they work.
+          </span>
+          <a
+            href={`/skills?ws=${workspaceId}&filter=stale`}
+            className="ml-auto text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-amber-800 hover:text-amber-900"
+          >
+            Review →
+          </a>
+        </section>
+      )}
+
+      {/* Emerging patterns — cross-source domain clustering */}
+      {signals.emergingPatterns.length > 0 && (
+        <section className="col-span-12 border border-zinc-200 p-5">
+          <div className="flex items-baseline justify-between mb-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+                {t("emerging.title", lang)}
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">{t("emerging.subtitle", lang)}</p>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {signals.emergingPatterns.map((p) => (
+              <PatternCard key={p.domain} pattern={p} lang={lang} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* Recent automations — fresh skills with one-shot install */}
+      {signals.recentSkills.length > 0 && (
+        <section className="col-span-12 border border-zinc-200 p-5">
+          <div className="flex items-baseline justify-between mb-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+                {t("signals.recentAutomations", lang)}
+              </div>
+              <p className="mt-1 text-xs text-zinc-500">{t("signals.recentAutomationsHint", lang)}</p>
+            </div>
+            <a
+              href={`/api/workspace/${workspaceId}/skills.zip`}
+              className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 hover:border-zinc-900"
+            >
+              {t("signals.downloadAll", lang)}
+            </a>
+          </div>
+          <ul className="divide-y divide-zinc-100">
+            {signals.recentSkills.map((s) => (
+              <RecentSkillRow
+                key={s.slug}
+                workspaceId={workspaceId}
+                originUrl={originUrl}
+                skill={s}
+                lang={lang}
+              />
+            ))}
+          </ul>
+        </section>
+      )}
+    </>
+  );
+}
+
+function SignalCard({
+  source,
+  live,
+  pulse,
+  detail,
+  person,
+  lang,
+}: {
+  source: string;
+  live: boolean;
+  pulse: string;
+  detail: React.ReactNode;
+  person: { displayName: string; role: string | null; lastSeenAt: string | null } | null;
+  lang?: string;
+}) {
+  return (
+    <div className="bg-[var(--paper)] px-5 py-4">
+      <div className="flex items-center gap-2">
+        <span className={`size-1.5 rounded-full ${live ? "bg-emerald-500 animate-pulse" : "bg-zinc-300"}`} />
+        <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+          {source} · {pulse}
+        </span>
+      </div>
+      <div className="mt-2 space-y-1 text-xs text-zinc-600 leading-relaxed">
+        {detail && <div>{detail}</div>}
+        {person && person.lastSeenAt && (
+          <div>
+            {t("signals.lastPersonUpdated", lang)}:{" "}
+            <span className="text-zinc-900">{person.displayName}</span>
+            {person.role && <span className="text-zinc-500"> — {person.role}</span>}
+            <span className="text-zinc-400"> · {formatRelative(person.lastSeenAt)}</span>
+          </div>
+        )}
+        {!detail && !person && <div className="text-zinc-400">{t("signals.noActivity", lang)}</div>}
+      </div>
+    </div>
+  );
+}
+
+function RecentSkillRow({
+  workspaceId,
+  originUrl,
+  skill,
+  lang,
+}: {
+  workspaceId: string;
+  originUrl: string;
+  skill: LiveSignals["recentSkills"][number];
+  lang?: string;
+}) {
+  const [copied, setCopied] = useState(false);
+  const installCmd = `curl -fsSL "${originUrl}/api/workspace/${workspaceId}/skills/${skill.slug}" -o ~/.claude/skills/${skill.slug}.md`;
+  const stale = skill.effectiveConfidence < 0.45;
+
+  return (
+    <li className="flex items-center gap-3 py-3">
+      <span
+        className={`text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-1.5 py-0.5 border ${
+          skill.source === "freshdesk"
+            ? "border-emerald-300 text-emerald-700"
+            : skill.source === "slack"
+              ? "border-zinc-300 text-zinc-700"
+              : "border-zinc-200 text-zinc-500"
+        }`}
+      >
+        {skill.source}
+      </span>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <div className="text-sm text-zinc-900 truncate">{skill.title}</div>
+          {stale && (
+            <span
+              className="text-[9px] uppercase tracking-wider font-[var(--font-mono)] px-1 py-0.5 border border-amber-300 bg-amber-50 text-amber-800"
+              title={`Confidence has decayed (${Math.round(skill.effectiveConfidence * 100)}%) — last observed ${skill.lastObservedAt ? formatRelative(skill.lastObservedAt) : "long ago"}`}
+            >
+              stale
+            </span>
+          )}
+          {skill.appliedCount > 0 && (
+            <span
+              className="text-[9px] uppercase tracking-wider font-[var(--font-mono)] px-1 py-0.5 border border-emerald-300 bg-emerald-50 text-emerald-800"
+              title={`Applied ${skill.appliedCount}× by an installed agent${skill.lastAppliedAt ? ` · last ${formatRelative(skill.lastAppliedAt)}` : ""}`}
+            >
+              used {skill.appliedCount}×
+            </span>
+          )}
+        </div>
+        <div className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-400">
+          {skill.type} {skill.lastObservedAt && `· ${t("signals.extractedPrefix", lang)} ${formatRelative(skill.lastObservedAt)}`}
+        </div>
+      </div>
+      <button
+        type="button"
+        onClick={() => {
+          navigator.clipboard.writeText(installCmd);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1800);
+        }}
+        className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-2 py-1 border border-zinc-300 hover:border-zinc-900 text-zinc-700 hover:text-zinc-900"
+      >
+        {copied ? t("signals.copied", lang) : t("signals.copyInstall", lang)}
+      </button>
+    </li>
+  );
+}
+
+// Maps a domain (the `domain` field on extracted skills) to a concrete AI
+// action the user can deploy with the underlying skills. Translates the
+// abstract "we found 8 procedures in this domain" into "deploy a Claude
+// agent that does X across surface Y" — which is the actual product value:
+// turn fragmented domain knowledge into ready-to-run automations.
+const DOMAIN_AI_ACTIONS: Record<string, { action: string; agentSurface: string }> = {
+  support: { action: "Auto-triage incoming tickets and draft first-line replies", agentSurface: "Freshdesk" },
+  refund: { action: "Pre-validate refund requests, auto-approve under threshold", agentSurface: "Freshdesk + Stripe" },
+  billing: { action: "Resolve recurring billing/pricing questions without an agent", agentSurface: "Freshdesk" },
+  onboarding: { action: "AI buddy that answers new-hire process questions", agentSurface: "Slack" },
+  deploy: { action: "Notify on deploys, propose rollbacks based on past incidents", agentSurface: "Slack + GitHub" },
+  ops: { action: "Daily ops summary, escalation routing", agentSurface: "Slack" },
+  product: { action: "Surface user feedback themes weekly with auto-tagging", agentSurface: "Slack + Linear" },
+  engineering: { action: "Code review with company conventions, incident playbook", agentSurface: "GitHub + Slack" },
+  pricing: { action: "Auto-validate promo codes against your pricing rules", agentSurface: "Stripe" },
+  marketing: { action: "Draft campaign briefs grounded in past launches", agentSurface: "Slack" },
+  hr: { action: "Resolve HR / payroll questions from past Slack precedents", agentSurface: "Slack" },
+};
+
+function aiActionFor(
+  domain: string,
+  lang: string | undefined,
+): { action: string; agentSurface: string } {
+  const key = domain.trim().toLowerCase();
+  // Try the i18n bundle first (covers all known domains in EN + FR).
+  let bundleKey = DOMAIN_AI_ACTIONS[key] ? key : null;
+  if (!bundleKey) {
+    for (const k of Object.keys(DOMAIN_AI_ACTIONS)) {
+      if (key.includes(k)) {
+        bundleKey = k;
+        break;
+      }
+    }
+  }
+  if (bundleKey) {
+    return {
+      action: t(`domain.${bundleKey}.action`, lang),
+      agentSurface: t(`domain.${bundleKey}.surface`, lang),
+    };
+  }
+  return {
+    action: t("domain.fallback.action", lang, { domain }),
+    agentSurface: t("domain.fallback.surface", lang),
+  };
+}
+
+function PatternCard({
+  pattern,
+  lang,
+}: {
+  pattern: LiveSignals["emergingPatterns"][number];
+  lang?: string;
+}) {
+  const sources = [
+    pattern.slackCount > 0 ? `${pattern.slackCount} Slack` : null,
+    pattern.freshdeskCount > 0 ? `${pattern.freshdeskCount} Freshdesk` : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const ai = aiActionFor(pattern.domain, lang);
+
+  return (
+    <div className="border border-zinc-200 p-4 bg-[var(--paper)] flex flex-col">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-medium text-zinc-900 capitalize truncate">{pattern.domain}</span>
+        <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500 tabular-nums">
+          {t("emerging.skillsCount", lang, { n: pattern.count })}
+        </span>
+      </div>
+      <div className="mt-1 text-[10px] uppercase tracking-[0.18em] text-zinc-400 font-[var(--font-mono)]">
+        {sources}
+      </div>
+
+      {/* Suggested AI deployment derived from the domain */}
+      <div className="mt-3 border-l-2 border-zinc-900 pl-2.5">
+        <div className="text-[9px] uppercase tracking-[0.2em] text-zinc-500 font-[var(--font-mono)]">
+          {t("emerging.aiAction", lang)}
+        </div>
+        <p className="mt-0.5 text-xs text-zinc-900 leading-snug">{ai.action}</p>
+        <div className="mt-1 text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+          {t("emerging.runsOn", lang, { surface: ai.agentSurface })}
+        </div>
+      </div>
+
+      <ul className="mt-3 space-y-1 text-xs text-zinc-500 flex-1">
+        {pattern.samples.slice(0, 2).map((title, i) => (
+          <li key={i} className="flex items-start gap-1.5">
+            <span className="text-zinc-400 mt-0.5">·</span>
+            <span className="truncate">{title}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function formatRelative(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const then = new Date(iso).getTime();
+  if (Number.isNaN(then)) return "—";
+  const diffMs = Date.now() - then;
+  const diffSec = Math.round(diffMs / 1000);
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 48) return `${diffHr}h ago`;
+  const diffDay = Math.round(diffHr / 24);
+  if (diffDay < 14) return `${diffDay}d ago`;
+  const diffWk = Math.round(diffDay / 7);
+  if (diffWk < 8) return `${diffWk}w ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+// Compact horizontal strip of the user's tools, with connection state.
+// Replaces the old Sources hero. Driven by the wizard's company_tools list.
+function ToolStrip({
+  workspaceId,
+  companyTools,
+  sourcesConnected,
+  counts,
+  lang,
+}: {
+  workspaceId: string;
+  companyTools: string[] | null;
+  sourcesConnected: { slack: boolean; freshdesk: boolean };
+  counts: { slack: number; freshdesk: number };
+  lang?: string;
+}) {
+  const tools = companyTools ?? [];
+
+  if (tools.length === 0) {
+    return (
+      <section className="col-span-12 border border-zinc-200 px-5 py-4 flex items-center justify-between gap-4">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+            {t("tools.sources", lang)}
+          </div>
+          <p className="mt-1 text-sm text-zinc-700">{t("tools.unknownStack", lang)}</p>
+        </div>
+        <a
+          href={`/onboarding?ws=${workspaceId}`}
+          className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800"
+        >
+          {t("tools.runOnboarding", lang)}
+        </a>
+      </section>
+    );
+  }
+
+  // Always include Slack first, even if user didn't list it (the workspace
+  // exists because of Slack OAuth — it's implied).
+  const seen = new Set<string>();
+  const ordered: string[] = [];
+  for (const name of ["Slack", ...tools]) {
+    const key = name.trim().toLowerCase();
+    if (!seen.has(key)) {
+      seen.add(key);
+      ordered.push(name.trim());
+    }
+  }
+
+  return (
+    <section className="col-span-12 border border-zinc-200 px-5 py-3">
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mr-1">
+          {t("tools.sources", lang)}
+        </span>
+        {ordered.map((name) => (
+          <ToolChip
+            key={name}
+            name={name}
+            sourcesConnected={sourcesConnected}
+            counts={counts}
+            workspaceId={workspaceId}
+            lang={lang}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function StripeChip({
+  workspaceId,
+  display,
+  lang,
+}: {
+  workspaceId: string;
+  display: string;
+  lang?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="inline-flex items-center gap-2 px-2.5 py-1 border border-zinc-300 hover:border-zinc-900 text-xs text-zinc-700 hover:text-zinc-900"
+      >
+        <span className="size-1.5 rounded-full bg-zinc-400" />
+        {display}
+        <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+          {t("tools.connect", lang)}
+        </span>
+      </button>
+      <StripeKeyModal workspaceId={workspaceId} open={open} onClose={() => setOpen(false)} />
+    </>
+  );
+}
+
+function ToolChip({
+  name,
+  sourcesConnected,
+  counts,
+  workspaceId,
+  lang,
+}: {
+  name: string;
+  sourcesConnected: { slack: boolean; freshdesk: boolean };
+  counts: { slack: number; freshdesk: number };
+  workspaceId: string;
+  lang?: string;
+}) {
+  const meta = INTEGRATIONS[name.trim().toLowerCase()];
+
+  // Resolve effective status from runtime sources, not just the static map.
+  let status: IntegrationStatus | "custom";
+  if (!meta) {
+    status = "custom";
+  } else if (meta.canonical === "Slack") {
+    status = sourcesConnected.slack ? "connected" : "available";
+  } else if (meta.canonical === "Freshdesk") {
+    status = sourcesConnected.freshdesk ? "connected" : "available";
+  } else {
+    status = meta.status;
+  }
+
+  const display = meta?.canonical ?? name;
+  const skillCount =
+    display === "Slack" ? counts.slack : display === "Freshdesk" ? counts.freshdesk : null;
+
+  if (status === "connected") {
+    // Freshdesk has its own deep-dive page. Slack's lives under /atlas
+    // (channel graph). Make the chip a link so users can drill into evidence.
+    const href =
+      display === "Freshdesk"
+        ? `/freshdesk?ws=${workspaceId}`
+        : display === "Slack"
+          ? `/atlas?ws=${workspaceId}`
+          : null;
+
+    const inner = (
+      <>
+        <span className="size-1.5 rounded-full bg-emerald-500" />
+        {display}
+        {skillCount !== null && skillCount > 0 && (
+          <span className="text-[10px] tabular-nums font-[var(--font-mono)] text-zinc-500">
+            · {t("tools.skillsCount", lang, { n: skillCount })}
+          </span>
+        )}
+        {href && <span className="text-[10px] text-zinc-400">→</span>}
+      </>
+    );
+
+    return href ? (
+      <a
+        href={href}
+        className="inline-flex items-center gap-2 px-2.5 py-1 border border-emerald-200 bg-emerald-50/40 text-xs text-zinc-900 hover:border-emerald-400 hover:bg-emerald-50"
+      >
+        {inner}
+      </a>
+    ) : (
+      <span className="inline-flex items-center gap-2 px-2.5 py-1 border border-emerald-200 bg-emerald-50/40 text-xs text-zinc-900">
+        {inner}
+      </span>
+    );
+  }
+
+  if (status === "available") {
+    // Stripe gets a click-to-paste-key modal; Freshdesk goes to its connect page.
+    if (display === "Stripe") {
+      return <StripeChip workspaceId={workspaceId} display={display} lang={lang} />;
+    }
+    return (
+      <a
+        href={display === "Freshdesk" ? `/atlas?ws=${workspaceId}` : "#"}
+        className="inline-flex items-center gap-2 px-2.5 py-1 border border-zinc-300 hover:border-zinc-900 text-xs text-zinc-700 hover:text-zinc-900"
+      >
+        <span className="size-1.5 rounded-full bg-zinc-400" />
+        {display}
+        <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+          {t("tools.connect", lang)}
+        </span>
+      </a>
+    );
+  }
+
+  if (status === "coming_soon") {
+    return (
+      <span
+        className="inline-flex items-center gap-2 px-2.5 py-1 border border-zinc-200 bg-zinc-50/50 text-xs text-zinc-500"
+        title="On the roadmap — we'll wire this integration soon"
+      >
+        <span className="size-1.5 rounded-full bg-amber-400" />
+        {display}
+        <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-400">
+          {t("tools.soon", lang)}
+        </span>
+      </span>
+    );
+  }
+
+  // Custom (user-typed, not in our integration map)
+  return (
+    <span className="inline-flex items-center gap-2 px-2.5 py-1 border border-zinc-200 text-xs text-zinc-600">
+      <span className="size-1.5 rounded-full bg-zinc-300" />
+      {display}
+    </span>
   );
 }
 

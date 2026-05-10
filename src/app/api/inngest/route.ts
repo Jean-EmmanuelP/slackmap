@@ -9,6 +9,7 @@ import { extractPeople } from "@/inngest/extract-people";
 import { reExtractPerson } from "@/inngest/re-extract-person";
 import { extractFreshdesk } from "@/inngest/extract-freshdesk";
 import { syncFreshdeskDaily } from "@/inngest/sync-freshdesk-daily";
+import { agentTick } from "@/inngest/agent-tick";
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
@@ -22,5 +23,6 @@ export const { GET, POST, PUT } = serve({
     reExtractPerson,
     extractFreshdesk,
     syncFreshdeskDaily,
+    agentTick,
   ],
 });

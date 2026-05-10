@@ -1,4 +1,5 @@
 import { llmCall, parseJsonBlock } from "./anthropic";
+import { buildCompanyContextBlock, type CompanyContextWorkspace } from "./company-context-block";
 
 export type PersonExtractionInput = {
   display_name: string | null;
@@ -63,6 +64,7 @@ Rules:
 export async function extractPerson(
   input: PersonExtractionInput,
   apiKey?: string,
+  companyContext?: CompanyContextWorkspace | null,
 ): Promise<PersonExtractionOutput> {
   const channelsBlock = input.topChannels
     .slice(0, 5)
@@ -87,8 +89,10 @@ export async function extractPerson(
     ? `${SYSTEM}\n\nIMPORTANT — human-provided context about this person (treat as ground truth, override your inference if it conflicts):\n${input.hint}`
     : SYSTEM;
 
+  const systemWithCompany = buildCompanyContextBlock(companyContext) + systemWithHint;
+
   const text = await llmCall({
-    system: systemWithHint,
+    system: systemWithCompany,
     userMessage: userMsg,
     maxTokens: 800,
     model: "extract",

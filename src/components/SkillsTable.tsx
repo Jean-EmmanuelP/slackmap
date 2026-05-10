@@ -40,12 +40,14 @@ export function SkillsTable({
   teamDomain,
   channelNames,
   isAdmin,
+  lang,
 }: {
   skills: Skill[];
   workspaceId: string;
   teamDomain: string | null;
   channelNames?: Record<string, string>;
   isAdmin?: boolean;
+  lang?: string;
 }) {
   const [q, setQ] = useState("");
   const [typeFilter, setTypeFilter] = useState<"all" | Skill["type"]>("all");
@@ -60,32 +62,47 @@ export function SkillsTable({
   const draftSkills = skills.filter((s) => s.status === "draft");
   const visibleSkills = showDrafts ? skills : activeSkills;
 
+  // Translation lookup: prefer translations[lang][field], fallback to canonical English.
+  // Inline (no import shuffle) — keeps SkillsTable self-contained.
+  function tr(skill: Skill, field: "title" | "trigger" | "steps_md" | "decision_criteria" | "escalation"): string | null {
+    const code = (lang ?? "en").toLowerCase();
+    if (code === "en") return (skill as Skill & Record<string, unknown>)[field] as string | null;
+    type WithTranslations = Skill & { translations?: Record<string, Record<string, string | null | undefined>> | null };
+    const t = (skill as WithTranslations).translations?.[code]?.[field];
+    if (typeof t === "string" && t.trim().length > 0) return t;
+    return (skill as Skill & Record<string, unknown>)[field] as string | null;
+  }
+
   const filtered = useMemo(() => {
     const ql = q.trim().toLowerCase();
     return visibleSkills.filter((s) => {
       if (typeFilter !== "all" && s.type !== typeFilter) return false;
       if (sourceFilter !== "all" && (s.source ?? "slack") !== sourceFilter) return false;
       if (ql.length === 0) return true;
-      return (
-        s.title.toLowerCase().includes(ql) ||
-        s.slug.toLowerCase().includes(ql) ||
-        (s.trigger?.toLowerCase().includes(ql) ?? false)
-      );
+      // Search both canonical English and translated version for hits.
+      const haystack = [
+        s.title.toLowerCase(),
+        s.slug.toLowerCase(),
+        s.trigger?.toLowerCase() ?? "",
+        (tr(s, "title") ?? "").toLowerCase(),
+        (tr(s, "trigger") ?? "").toLowerCase(),
+      ];
+      return haystack.some((h) => h.includes(ql));
     });
-  }, [visibleSkills, q, typeFilter, sourceFilter]);
+  }, [visibleSkills, q, typeFilter, sourceFilter, lang]);
 
   const types: Array<"all" | Skill["type"]> = ["all", "process", "policy", "decision", "escalation"];
   const sources: Array<"all" | SkillSource> = ["all", "slack", "freshdesk", "manual"];
 
   return (
     <div className="flex-1 flex flex-col" key={refreshKey}>
-      <div className="px-6 py-4 flex items-center gap-3 border-b border-zinc-200">
+      <div className="px-6 py-4 flex flex-wrap items-center gap-3 border-b border-zinc-200">
         <input
           type="search"
           placeholder="Search skills…"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          className="flex-1 max-w-md px-3 py-2 bg-transparent border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
+          className="flex-1 min-w-[200px] max-w-md px-3 py-2 bg-transparent border border-zinc-300 text-sm text-zinc-900 placeholder-zinc-500 focus:outline-none focus:border-zinc-700"
         />
         <div className="flex border border-zinc-300">
           {types.map((t, i) => (
@@ -215,9 +232,9 @@ export function SkillsTable({
                       </span>
                       <span className="mt-0.5"><SourceBadge source={s.source} /></span>
                       <div className="flex-1 min-w-0">
-                        <div className="font-medium text-zinc-900 text-sm">{s.title}</div>
-                        {s.trigger && (
-                          <div className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{s.trigger}</div>
+                        <div className="font-medium text-zinc-900 text-sm">{tr(s, "title") ?? s.title}</div>
+                        {(tr(s, "trigger") ?? s.trigger) && (
+                          <div className="text-xs text-zinc-500 mt-0.5 line-clamp-1">{tr(s, "trigger") ?? s.trigger}</div>
                         )}
                       </div>
                       <div className="shrink-0 flex items-center gap-3">
@@ -251,6 +268,7 @@ export function SkillsTable({
           channelNames={channelNames ?? {}}
           workspaceId={workspaceId}
           isAdmin={isAdmin}
+          lang={lang}
           onClose={() => setSelected(null)}
           onEdited={() => setRefreshKey((k) => k + 1)}
         />
@@ -286,12 +304,31 @@ function formatTs(ts: string): string {
   });
 }
 
+// Top-level translation lookup used by SkillPanel (it's a separate component
+// outside SkillsTable's scope, so it can't reuse the inline tr()).
+function trPanel(
+  skill: Skill,
+  field: "title" | "trigger" | "steps_md" | "decision_criteria" | "escalation",
+  lang: string | undefined,
+): string | null {
+  const code = (lang ?? "en").toLowerCase();
+  const fallback = (skill as Skill & Record<string, unknown>)[field] as string | null;
+  if (code === "en") return fallback;
+  type WithTranslations = Skill & {
+    translations?: Record<string, Record<string, string | null | undefined>> | null;
+  };
+  const t = (skill as WithTranslations).translations?.[code]?.[field];
+  if (typeof t === "string" && t.trim().length > 0) return t;
+  return fallback;
+}
+
 function SkillPanel({
   skill,
   teamDomain,
   channelNames,
   workspaceId,
   isAdmin,
+  lang,
   onClose,
   onEdited,
 }: {
@@ -300,6 +337,7 @@ function SkillPanel({
   channelNames: Record<string, string>;
   workspaceId: string;
   isAdmin?: boolean;
+  lang?: string;
   onClose: () => void;
   onEdited: () => void;
 }) {
@@ -374,17 +412,17 @@ function SkillPanel({
             ✕
           </button>
         </div>
-        <h2 className="text-2xl font-semibold text-zinc-900">{skill.title}</h2>
+        <h2 className="text-2xl font-semibold text-zinc-900">{trPanel(skill, "title", lang)}</h2>
         <p className="text-xs text-zinc-500 font-[var(--font-mono)] mt-1">{skill.slug}</p>
 
-        {skill.trigger && (
+        {trPanel(skill, "trigger", lang) && (
           <Section title="Trigger">
-            <p className="text-zinc-700">{skill.trigger}</p>
+            <p className="text-zinc-700">{trPanel(skill, "trigger", lang)}</p>
           </Section>
         )}
-        {skill.steps_md && (
+        {trPanel(skill, "steps_md", lang) && (
           <Section title="Steps">
-            <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-700">{skill.steps_md}</pre>
+            <pre className="whitespace-pre-wrap font-sans text-sm text-zinc-700">{trPanel(skill, "steps_md", lang)}</pre>
           </Section>
         )}
         {skill.decision_criteria && (

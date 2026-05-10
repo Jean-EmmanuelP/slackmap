@@ -1,4 +1,5 @@
 import { llmCall, parseJsonBlock } from "./anthropic";
+import { buildCompanyContextBlock, type CompanyContextWorkspace } from "./company-context-block";
 
 type Msg = { ts: string; user?: string; text?: string };
 
@@ -134,6 +135,7 @@ export async function extractSkillsFromChannel(
   channelName: string,
   messages: Msg[],
   apiKey?: string,
+  companyContext?: CompanyContextWorkspace | null,
 ): Promise<ExtractedSkill[]> {
   const seeds = findProceduralSeeds(messages);
   if (seeds.length === 0) return [];
@@ -151,7 +153,7 @@ export async function extractSkillsFromChannel(
     .join("\n\n");
 
   const text = await llmCall({
-    system: EXTRACT_SYSTEM,
+    system: buildCompanyContextBlock(companyContext) + EXTRACT_SYSTEM,
     userMessage:
       `Channel: #${channelName}\n\n` +
       `Extract executable skills from these ${contexts.length} candidates:\n\n${userMsg}`,
@@ -365,6 +367,7 @@ export type PersonSkillInput = {
 export async function extractSkillsForPerson(
   input: PersonSkillInput,
   apiKey?: string,
+  companyContext?: CompanyContextWorkspace | null,
 ): Promise<ExtractedSkill[]> {
   if (!input.role || input.role.toLowerCase() === "bot") return [];
 
@@ -381,7 +384,7 @@ export async function extractSkillsForPerson(
       .join("\n");
 
   const text = await llmCall({
-    system: PERSON_SKILLS_SYSTEM,
+    system: buildCompanyContextBlock(companyContext) + PERSON_SKILLS_SYSTEM,
     userMessage: userMsg,
     maxTokens: 2048,
     model: "extract",

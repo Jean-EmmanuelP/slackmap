@@ -12,6 +12,14 @@ export type FreshdeskTicket = {
   tags: string[];
   created_at: string;
   updated_at: string;
+  requester_id?: number;
+  // Populated when the call uses `include=requester` (we do this for analyzer
+  // scans so signals carry the WHO+WHEN context the brain reasons over).
+  requester?: {
+    id: number;
+    name: string | null;
+    email: string | null;
+  } | null;
 };
 
 export type FreshdeskConversation = {
@@ -119,7 +127,7 @@ export class FreshdeskClient {
     const out: FreshdeskTicket[] = [];
     for (let page = 1; page <= pages; page++) {
       const batch = await this.get<FreshdeskTicket[]>(
-        `/api/v2/tickets?per_page=${perPage}&page=${page}&order_by=updated_at&order_type=desc&include=description`,
+        `/api/v2/tickets?per_page=${perPage}&page=${page}&order_by=updated_at&order_type=desc&include=description,requester`,
       );
       out.push(...batch);
       if (batch.length < perPage) break;
@@ -162,6 +170,60 @@ export class FreshdeskClient {
       if (batch.length < perPage) break;
     }
     return out;
+  }
+
+  /**
+   * Post a public reply on a ticket. This is what the customer sees — used by
+   * the agent runtime when a human approves a draft from the slackmap composer.
+   * Returns the new conversation entry's id.
+   */
+  async postPublicReply(ticketId: number, body: string): Promise<{ id: number }> {
+    const res = await fetch(`https://${this.domain}/api/v2/tickets/${ticketId}/reply`, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader(this.apiKey),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ body }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Freshdesk reply ${res.status}: ${text.slice(0, 200)}`);
+    }
+    return (await res.json()) as { id: number };
+  }
+
+  /** Post a private note (visible only to agents). For the audit trail of agent reasoning. */
+  async postPrivateNote(ticketId: number, body: string): Promise<{ id: number }> {
+    const res = await fetch(`https://${this.domain}/api/v2/tickets/${ticketId}/notes`, {
+      method: "POST",
+      headers: {
+        Authorization: authHeader(this.apiKey),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ body, private: true }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Freshdesk note ${res.status}: ${text.slice(0, 200)}`);
+    }
+    return (await res.json()) as { id: number };
+  }
+
+  /** Close a ticket (status=5). Used by the spam short-circuit. */
+  async closeTicket(ticketId: number): Promise<void> {
+    const res = await fetch(`https://${this.domain}/api/v2/tickets/${ticketId}`, {
+      method: "PUT",
+      headers: {
+        Authorization: authHeader(this.apiKey),
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status: 5 }),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`Freshdesk close ${res.status}: ${text.slice(0, 200)}`);
+    }
   }
 
   ticketUrl(ticketId: number): string {

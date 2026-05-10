@@ -25,6 +25,18 @@ export type Workspace = {
   freshdesk_status: "idle" | "queued" | "running" | "done" | "failed";
   freshdesk_error: string | null;
   slack_team_icon_url: string | null;
+  encrypted_linkup_api_key: string | null;
+  linkup_key_set_at: string | null;
+  company_name: string | null;
+  company_website: string | null;
+  company_description: string | null;
+  company_industry: string | null;
+  company_audience: "b2b" | "b2c" | "both" | null;
+  company_tools: string[] | null;
+  company_scope: "worldwide" | "national" | null;
+  company_country: string | null;
+  company_context: Record<string, unknown> | null;
+  company_resolved_at: string | null;
 };
 
 export type Channel = {
@@ -257,6 +269,82 @@ export async function getWorkspaceAnthropicKey(workspaceId: string): Promise<str
   return (data?.encrypted_anthropic_api_key as string | null) ?? null;
 }
 
+export async function setWorkspaceLinkupKey(
+  workspaceId: string,
+  encryptedKey: string | null,
+): Promise<void> {
+  const { error } = await db()
+    .from("workspaces")
+    .update({
+      encrypted_linkup_api_key: encryptedKey,
+      linkup_key_set_at: encryptedKey ? new Date().toISOString() : null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workspaceId);
+  if (error) throw error;
+}
+
+export async function getWorkspaceLinkupKey(workspaceId: string): Promise<string | null> {
+  const { data, error } = await db()
+    .from("workspaces")
+    .select("encrypted_linkup_api_key")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data?.encrypted_linkup_api_key as string | null) ?? null;
+}
+
+// Persist one wizard step's user-confirmed answer. `columnPatch` is the map
+// returned by the step's persist() function (e.g. { company_name, company_website }).
+// `contextPatch` stashes the raw Linkup payload + sources for that step into the
+// `company_context.steps[stepId]` JSONB blob so the UI can show citations later.
+export async function persistCompanyStep(
+  workspaceId: string,
+  stepId: string,
+  columnPatch: Record<string, unknown>,
+  contextPatch: { proposed: unknown; confirmed: unknown; sources: unknown },
+): Promise<void> {
+  // Read-modify-write the JSONB blob. Race-acceptable for a per-user wizard.
+  const { data } = await db()
+    .from("workspaces")
+    .select("company_context")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  const existing = (data?.company_context as Record<string, unknown> | null) ?? {};
+  const steps = ((existing.steps as Record<string, unknown>) ?? {}) as Record<string, unknown>;
+  steps[stepId] = { ...contextPatch, confirmedAt: new Date().toISOString() };
+  const nextContext = { ...existing, steps };
+
+  const { error } = await db()
+    .from("workspaces")
+    .update({ ...columnPatch, company_context: nextContext, updated_at: new Date().toISOString() })
+    .eq("id", workspaceId);
+  if (error) throw error;
+}
+
+export async function finishCompanyResolution(workspaceId: string): Promise<void> {
+  const { error } = await db()
+    .from("workspaces")
+    .update({
+      company_resolved_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workspaceId);
+  if (error) throw error;
+}
+
+export async function resetCompanyResolution(workspaceId: string): Promise<void> {
+  const { error } = await db()
+    .from("workspaces")
+    .update({
+      company_resolved_at: null,
+      company_context: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workspaceId);
+  if (error) throw error;
+}
+
 export async function bumpLastEventReceivedAt(workspaceId: string): Promise<void> {
   await db()
     .from("workspaces")
@@ -442,9 +530,347 @@ export type Skill = {
   superseded_by: string | null;
   merged_into: string | null;
   merged_reason: string | null;
+  applied_count: number;
+  last_applied_at: string | null;
+  last_modification_proposed: string | null;
   created_at: string;
   updated_at: string;
 };
+
+// Feedback loop: signal sent by an installed skill (CLI/agent) when used.
+export type SkillFeedback = {
+  id: string;
+  workspace_id: string;
+  skill_id: string;
+  skill_slug: string;
+  applied: boolean;
+  rating: number | null;
+  modification_proposed: string | null;
+  context: string | null;
+  source: "agent" | "cli" | "manual";
+  created_at: string;
+};
+
+export async function recordSkillFeedback(input: {
+  workspaceId: string;
+  skillSlug: string;
+  applied?: boolean;
+  rating?: number | null;
+  modificationProposed?: string | null;
+  context?: string | null;
+  source?: SkillFeedback["source"];
+}): Promise<{ feedbackId: string; skillId: string; appliedCount: number } | null> {
+  // Resolve skill_id from slug (active or draft, never superseded).
+  const { data: skill, error: skillErr } = await db()
+    .from("skills")
+    .select("id, applied_count")
+    .eq("workspace_id", input.workspaceId)
+    .eq("slug", input.skillSlug)
+    .neq("status", "superseded")
+    .maybeSingle();
+  if (skillErr) throw skillErr;
+  if (!skill) return null;
+
+  const now = new Date().toISOString();
+  const applied = input.applied ?? true;
+
+  const { data: fb, error: fbErr } = await db()
+    .from("skill_feedback")
+    .insert({
+      workspace_id: input.workspaceId,
+      skill_id: skill.id as string,
+      skill_slug: input.skillSlug,
+      applied,
+      rating: input.rating ?? null,
+      modification_proposed: input.modificationProposed ?? null,
+      context: input.context ?? null,
+      source: input.source ?? "agent",
+    })
+    .select("id")
+    .single();
+  if (fbErr) throw fbErr;
+
+  const nextCount = ((skill.applied_count as number | null) ?? 0) + (applied ? 1 : 0);
+  await db()
+    .from("skills")
+    .update({
+      applied_count: nextCount,
+      last_applied_at: applied ? now : undefined,
+      last_modification_proposed: input.modificationProposed ?? undefined,
+      updated_at: now,
+    })
+    .eq("id", skill.id as string);
+
+  return { feedbackId: fb.id as string, skillId: skill.id as string, appliedCount: nextCount };
+}
+
+// ---------- Agent runs (support co-pilot) ----------
+
+export type AgentRun = {
+  id: string;
+  workspace_id: string;
+  ticket_id: number;
+  ticket_subject: string;
+  ticket_url: string | null;
+  ticket_body: string | null;
+  requester_email: string | null;
+  ticket_priority: number | null;
+  ticket_created_at: string | null;
+  urgency: "low" | "medium" | "high" | "critical" | null;
+  category: string | null;
+  draft_original: string | null;
+  draft_sent: string | null;
+  reasoning: string | null;
+  matched_skill_slugs: string[];
+  status: "pending" | "sent" | "rejected" | "failed";
+  rejection_reason: string | null;
+  diff_distance: number | null;
+  outcome: "sent_unchanged" | "sent_edited" | "rejected" | "failed" | null;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+  sent_at: string | null;
+};
+
+export async function createAgentRun(input: {
+  workspaceId: string;
+  ticketId: number;
+  ticketSubject: string;
+  ticketUrl: string | null;
+  ticketBody: string | null;
+  requesterEmail: string | null;
+  ticketPriority: number | null;
+  ticketCreatedAt: string | null;
+  urgency: AgentRun["urgency"];
+  category: string | null;
+  draftOriginal: string | null;
+  reasoning: string | null;
+  matchedSkillSlugs: string[];
+  status: AgentRun["status"];
+}): Promise<AgentRun | null> {
+  const { data, error } = await db()
+    .from("agent_runs")
+    .insert({
+      workspace_id: input.workspaceId,
+      ticket_id: input.ticketId,
+      ticket_subject: input.ticketSubject,
+      ticket_url: input.ticketUrl,
+      ticket_body: input.ticketBody,
+      requester_email: input.requesterEmail,
+      ticket_priority: input.ticketPriority,
+      ticket_created_at: input.ticketCreatedAt,
+      urgency: input.urgency,
+      category: input.category,
+      draft_original: input.draftOriginal,
+      reasoning: input.reasoning,
+      matched_skill_slugs: input.matchedSkillSlugs,
+      status: input.status,
+    })
+    .select("*")
+    .single();
+  if (error) {
+    // Unique violation = ticket already processed; that's expected on re-runs.
+    if (error.code === "23505") return null;
+    throw error;
+  }
+  return data as AgentRun;
+}
+
+export async function listAgentRuns(
+  workspaceId: string,
+  opts: { status?: AgentRun["status"][]; limit?: number } = {},
+): Promise<AgentRun[]> {
+  let q = db()
+    .from("agent_runs")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("ticket_created_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(opts.limit ?? 100);
+  if (opts.status && opts.status.length > 0) q = q.in("status", opts.status);
+  const { data, error } = await q;
+  if (error) throw error;
+  return (data ?? []) as AgentRun[];
+}
+
+export async function getAgentRun(runId: string): Promise<AgentRun | null> {
+  const { data, error } = await db().from("agent_runs").select("*").eq("id", runId).maybeSingle();
+  if (error) throw error;
+  return (data as AgentRun) ?? null;
+}
+
+export async function markAgentRunSent(
+  runId: string,
+  draftSent: string,
+  diffDistance: number,
+  reviewedBy: string | null,
+): Promise<void> {
+  const outcome: AgentRun["outcome"] = diffDistance < 0.05 ? "sent_unchanged" : "sent_edited";
+  const now = new Date().toISOString();
+  const { error } = await db()
+    .from("agent_runs")
+    .update({
+      draft_sent: draftSent,
+      diff_distance: diffDistance,
+      outcome,
+      status: "sent",
+      reviewed_at: now,
+      reviewed_by: reviewedBy,
+      sent_at: now,
+    })
+    .eq("id", runId);
+  if (error) throw error;
+}
+
+export async function markAgentRunRejected(
+  runId: string,
+  reason: string | null,
+  reviewedBy: string | null,
+): Promise<void> {
+  const now = new Date().toISOString();
+  const { error } = await db()
+    .from("agent_runs")
+    .update({
+      status: "rejected",
+      rejection_reason: reason,
+      outcome: "rejected",
+      reviewed_at: now,
+      reviewed_by: reviewedBy,
+    })
+    .eq("id", runId);
+  if (error) throw error;
+}
+
+export async function setLastAgentTick(workspaceId: string, at: string): Promise<void> {
+  await db().from("workspaces").update({ last_agent_tick_at: at }).eq("id", workspaceId);
+}
+
+// ---------- Freshdesk early-warning signals ----------
+
+export type FreshdeskSignal = {
+  id: string;
+  workspace_id: string;
+  ticket_id: number;
+  ticket_subject: string;
+  ticket_url: string | null;
+  urgency: "low" | "medium" | "high" | "critical";
+  category:
+    | "complaint"
+    | "bug"
+    | "unknown_intent"
+    | "sentiment_negative"
+    | "spike"
+    | "churn_risk"
+    | "other";
+  reason: string;
+  matched_skill_slug: string | null;
+  matched_skill_confidence: number | null;
+  status: "new" | "acknowledged" | "resolved" | "dismissed";
+  acknowledged_at: string | null;
+  acknowledged_by: string | null;
+  created_at: string;
+  requester_email: string | null;
+  ticket_created_at: string | null;
+  ticket_priority: number | null;
+};
+
+export async function upsertFreshdeskSignals(
+  workspaceId: string,
+  signals: Array<{
+    ticketId: number;
+    ticketSubject: string;
+    ticketUrl: string | null;
+    urgency: FreshdeskSignal["urgency"];
+    category: FreshdeskSignal["category"];
+    reason: string;
+    matchedSkillSlug: string | null;
+    matchedSkillConfidence: number | null;
+    requesterEmail?: string | null;
+    ticketCreatedAt?: string | null;
+    ticketPriority?: number | null;
+  }>,
+): Promise<{ inserted: number; updated: number }> {
+  if (signals.length === 0) return { inserted: 0, updated: 0 };
+  const rows = signals.map((s) => ({
+    workspace_id: workspaceId,
+    ticket_id: s.ticketId,
+    ticket_subject: s.ticketSubject,
+    ticket_url: s.ticketUrl,
+    urgency: s.urgency,
+    category: s.category,
+    reason: s.reason,
+    matched_skill_slug: s.matchedSkillSlug,
+    matched_skill_confidence: s.matchedSkillConfidence,
+    requester_email: s.requesterEmail ?? null,
+    ticket_created_at: s.ticketCreatedAt ?? null,
+    ticket_priority: s.ticketPriority ?? null,
+  }));
+  const { error, count } = await db()
+    .from("freshdesk_signals")
+    .upsert(rows, { onConflict: "workspace_id,ticket_id", count: "exact" });
+  if (error) throw error;
+  return { inserted: count ?? rows.length, updated: 0 };
+}
+
+export async function listFreshdeskSignals(
+  workspaceId: string,
+  opts: {
+    status?: FreshdeskSignal["status"][];
+    limit?: number;
+    /** Only signals where ticket_created_at >= now() - sinceDays */
+    sinceDays?: number;
+  } = {},
+): Promise<FreshdeskSignal[]> {
+  let query = db()
+    .from("freshdesk_signals")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("ticket_created_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .limit(opts.limit ?? 100);
+  if (opts.status && opts.status.length > 0) {
+    query = query.in("status", opts.status);
+  }
+  if (typeof opts.sinceDays === "number" && opts.sinceDays > 0) {
+    const cutoff = new Date(Date.now() - opts.sinceDays * 24 * 60 * 60 * 1000).toISOString();
+    query = query.gte("ticket_created_at", cutoff);
+  }
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []) as FreshdeskSignal[];
+}
+
+export async function setFreshdeskSignalStatus(
+  workspaceId: string,
+  signalId: string,
+  status: FreshdeskSignal["status"],
+  acknowledgedBy: string | null = null,
+): Promise<void> {
+  const { error } = await db()
+    .from("freshdesk_signals")
+    .update({
+      status,
+      acknowledged_at: status === "acknowledged" || status === "resolved" ? new Date().toISOString() : null,
+      acknowledged_by: acknowledgedBy,
+    })
+    .eq("id", signalId)
+    .eq("workspace_id", workspaceId);
+  if (error) throw error;
+}
+
+export async function listRecentFeedback(
+  workspaceId: string,
+  limit = 20,
+): Promise<SkillFeedback[]> {
+  const { data, error } = await db()
+    .from("skill_feedback")
+    .select("*")
+    .eq("workspace_id", workspaceId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as SkillFeedback[];
+}
 
 export async function listSkills(workspaceId: string): Promise<Skill[]> {
   const { data, error } = await db()

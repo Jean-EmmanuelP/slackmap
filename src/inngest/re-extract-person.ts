@@ -111,7 +111,7 @@ export const reExtractPerson = inngest.createFunction(
       sampleMessages: samples,
       totalMessages,
       hint: hint ?? null,
-    }, apiKey).catch(() => ({ role: null, summary: null, tools: [], expertise: [] }));
+    }, apiKey, ws).catch(() => ({ role: null, summary: null, tools: [], expertise: [] }));
 
     await upsertPerson(workspaceId, {
       slack_user_id: slackUserId,

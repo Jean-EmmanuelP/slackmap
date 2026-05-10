@@ -1,5 +1,6 @@
 import { inngest, type FreshdeskExtractRequestedData } from "./client";
 import {
+  getWorkspace,
   getWorkspaceFreshdesk,
   setFreshdeskStatus,
   upsertSkill,
@@ -21,13 +22,84 @@ async function upsertFreshdeskAgent(
   agent: FreshdeskAgent,
   resolvedCount: number,
 ): Promise<void> {
-  const slackUserId = `freshdesk-agent-${agent.id}`;
+  const email = agent.contact?.email?.trim().toLowerCase() ?? null;
   const name = agent.contact?.name ?? null;
   const summary =
     resolvedCount > 0
       ? `Freshdesk support agent. Last responder on ${resolvedCount} tickets in the last 90 days.`
       : `Freshdesk support agent.`;
 
+  // Dedup pass: if a person with this email OR exact normalised name already
+  // exists in the workspace (almost always a Slack-extracted user), link the
+  // Freshdesk identity to that row instead of creating a 2nd profile. Same
+  // human, two surfaces. Email match wins; falls back to exact name match
+  // because work email and Freshdesk email often differ.
+  type ExistingMatch = { id: string; tools: string[] | null; role_extracted: string | null };
+  let existing: ExistingMatch | null = null;
+
+  if (email) {
+    const { data } = await db()
+      .from("people")
+      .select("id, tools, role_extracted")
+      .eq("workspace_id", workspaceId)
+      .ilike("email", email)
+      .neq("slack_user_id", `freshdesk-agent-${agent.id}`)
+      .limit(1)
+      .maybeSingle();
+    if (data?.id) {
+      existing = {
+        id: data.id as string,
+        tools: data.tools as string[] | null,
+        role_extracted: data.role_extracted as string | null,
+      };
+    }
+  }
+
+  if (!existing && name) {
+    // Pull all non-freshdesk-agent rows for this workspace and match by
+    // normalised display_name (lower + accents stripped + collapsed spaces).
+    const norm = (s: string | null | undefined) =>
+      (s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+    const target = norm(name);
+    if (target) {
+      const { data: candidates } = await db()
+        .from("people")
+        .select("id, display_name, tools, role_extracted")
+        .eq("workspace_id", workspaceId)
+        .not("slack_user_id", "like", "freshdesk-agent-%");
+      const hit = (candidates ?? []).find(
+        (c) => norm(c.display_name as string | null) === target,
+      );
+      if (hit?.id) {
+        existing = {
+          id: hit.id as string,
+          tools: hit.tools as string[] | null,
+          role_extracted: hit.role_extracted as string | null,
+        };
+      }
+    }
+  }
+
+  if (existing) {
+    const currentTools = Array.isArray(existing.tools) ? existing.tools : [];
+    const nextTools = currentTools.includes("Freshdesk")
+      ? currentTools
+      : [...currentTools, "Freshdesk"];
+    const nextRole = existing.role_extracted ?? "Support";
+    await db()
+      .from("people")
+      .update({
+        tools: nextTools,
+        role_extracted: nextRole,
+        last_seen_at: agent.last_active_at ?? new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", existing.id);
+    return;
+  }
+
+  // No matching person → create the Freshdesk-only row as before.
+  const slackUserId = `freshdesk-agent-${agent.id}`;
   await db()
     .from("people")
     .upsert(
@@ -74,6 +146,8 @@ export const extractFreshdesk = inngest.createFunction(
       return { skipped: true };
     }
 
+    const ws = await step.run("load-ws", () => getWorkspace(workspaceId));
+
     const apiKey = decrypt(conn.encryptedKey);
     const fd = new FreshdeskClient(conn.domain, apiKey);
     const llmKey = await loadWorkspaceApiKey(workspaceId);
@@ -107,7 +181,7 @@ export const extractFreshdesk = inngest.createFunction(
             }
           }
         }
-        const skills = await extractSkillsFromArticles(fd, llmKey, perFolderArticles);
+        const skills = await extractSkillsFromArticles(fd, llmKey, perFolderArticles, ws);
         for (const s of skills) {
           await upsertSkill(workspaceId, { ...s, source: "freshdesk" });
         }
@@ -138,7 +212,7 @@ export const extractFreshdesk = inngest.createFunction(
           const skills = await extractSkillsFromTickets(fd, llmKey, groupTickets, {
             groupLabel,
             convosPerTicket: 8,
-          });
+          }, ws);
           for (const s of skills) {
             await upsertSkill(workspaceId, { ...s, source: "freshdesk" });
           }
@@ -149,7 +223,7 @@ export const extractFreshdesk = inngest.createFunction(
           const skills = await extractSkillsFromTickets(fd, llmKey, withConvos, {
             groupLabel: "mixed",
             convosPerTicket: 8,
-          });
+          }, ws);
           for (const s of skills) {
             await upsertSkill(workspaceId, { ...s, source: "freshdesk" });
           }
@@ -182,7 +256,7 @@ export const extractFreshdesk = inngest.createFunction(
         for (const t of tickets) {
           texts.push(`${t.subject}\n${(t.description_text ?? "").slice(0, 800)}`);
         }
-        const entries = await extractGlossaryFromFreshdesk(llmKey, texts);
+        const entries = await extractGlossaryFromFreshdesk(llmKey, texts, ws);
         if (entries.length > 0) {
           await upsertGlossary(
             workspaceId,

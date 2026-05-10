@@ -74,7 +74,7 @@ export const onSlackEvent = inngest.createFunction(
       if (newTerms.length > 0) {
         const apiKey = await loadWorkspaceApiKey(ws.id);
         await step.run("define-new", async () => {
-          const defined = await llmDefineTerms(newTerms, channelId, apiKey).catch(() => []);
+          const defined = await llmDefineTerms(newTerms, channelId, apiKey, ws).catch(() => []);
           if (defined.length > 0) {
             const stamped = defined.map((d) => ({ ...d, first_seen_ts: ev.ts ?? d.first_seen_ts }));
             await upsertGlossary(ws.id, stamped);

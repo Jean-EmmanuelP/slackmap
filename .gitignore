@@ -45,3 +45,8 @@ next-env.d.ts
 supabase/.temp
 supabase/.branches
 .env.prod.local
+.gstack/
+
+# Claude Code session state (local only, never committed)
+.claude/scheduled_tasks.lock
+.claude/worktrees/

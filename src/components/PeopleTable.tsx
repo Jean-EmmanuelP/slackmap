@@ -3,12 +3,28 @@
 import { useMemo, useState } from "react";
 import type { Person } from "@/lib/db";
 
+// Translation lookup against people.translations JSONB. Falls back to the
+// canonical English value when the requested language is missing.
+function tr(p: Person, field: "summary" | "role_extracted", lang: string | undefined): string | null {
+  const code = (lang ?? "en").toLowerCase();
+  const fallback = (p as Person & Record<string, unknown>)[field] as string | null;
+  if (code === "en") return fallback;
+  type WithTranslations = Person & {
+    translations?: Record<string, Record<string, string | null | undefined>> | null;
+  };
+  const t = (p as WithTranslations).translations?.[code]?.[field];
+  if (typeof t === "string" && t.trim().length > 0) return t;
+  return fallback;
+}
+
 export function PeopleTable({
   people,
   workspaceId,
+  lang,
 }: {
   people: Person[];
   workspaceId: string;
+  lang?: string;
 }) {
   const [q, setQ] = useState("");
   const [selected, setSelected] = useState<Person | null>(null);
@@ -22,10 +38,12 @@ export function PeopleTable({
         (p.display_name?.toLowerCase().includes(ql) ?? false) ||
         (p.real_name?.toLowerCase().includes(ql) ?? false) ||
         (p.role_extracted?.toLowerCase().includes(ql) ?? false) ||
+        (tr(p, "role_extracted", lang)?.toLowerCase().includes(ql) ?? false) ||
+        (tr(p, "summary", lang)?.toLowerCase().includes(ql) ?? false) ||
         p.tools.some((t) => t.toLowerCase().includes(ql)) ||
         p.expertise.some((e) => e.toLowerCase().includes(ql)),
     );
-  }, [people, q]);
+  }, [people, q, lang]);
 
   async function refresh() {
     setBusy(true);
@@ -80,12 +98,12 @@ export function PeopleTable({
                     <span className="font-medium text-zinc-900">
                       {p.display_name ?? p.real_name ?? "?"}
                     </span>
-                    {p.role_extracted && (
-                      <span className="text-xs text-zinc-600">{p.role_extracted}</span>
+                    {(tr(p, "role_extracted", lang) ?? p.role_extracted) && (
+                      <span className="text-xs text-zinc-600">{tr(p, "role_extracted", lang) ?? p.role_extracted}</span>
                     )}
                   </div>
-                  {p.summary && (
-                    <p className="text-sm text-zinc-600 mt-0.5 truncate">{p.summary}</p>
+                  {(tr(p, "summary", lang) ?? p.summary) && (
+                    <p className="text-sm text-zinc-600 mt-0.5 truncate">{tr(p, "summary", lang) ?? p.summary}</p>
                   )}
                   {(p.tools.length > 0 || p.expertise.length > 0) && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
@@ -124,6 +142,7 @@ export function PeopleTable({
         <PersonPanel
           person={selected}
           workspaceId={workspaceId}
+          lang={lang}
           onClose={() => setSelected(null)}
         />
       )}
@@ -134,10 +153,12 @@ export function PeopleTable({
 function PersonPanel({
   person,
   workspaceId,
+  lang,
   onClose,
 }: {
   person: Person;
   workspaceId: string;
+  lang?: string;
   onClose: () => void;
 }) {
   const [hint, setHint] = useState("");
@@ -204,9 +225,9 @@ function PersonPanel({
               {person.display_name ?? person.real_name ?? "?"}
             </h2>
             {person.title && <p className="text-sm text-zinc-600">{person.title}</p>}
-            {person.role_extracted && (
+            {(tr(person, "role_extracted", lang) ?? person.role_extracted) && (
               <p className="text-[11px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)] mt-1">
-                {person.role_extracted}
+                {tr(person, "role_extracted", lang) ?? person.role_extracted}
               </p>
             )}
           </div>
@@ -279,9 +300,9 @@ function PersonPanel({
           {msg && <p className="text-xs text-zinc-700 font-[var(--font-mono)] mt-2">{msg}</p>}
         </div>
 
-        {person.summary && (
+        {(tr(person, "summary", lang) ?? person.summary) && (
           <Section title="Summary">
-            <p className="text-sm text-zinc-800 leading-relaxed">{person.summary}</p>
+            <p className="text-sm text-zinc-800 leading-relaxed">{tr(person, "summary", lang) ?? person.summary}</p>
           </Section>
         )}
 

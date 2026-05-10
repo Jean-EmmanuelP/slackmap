@@ -4,6 +4,7 @@
 // extraction, but with ticket id as the citation identifier.
 
 import { llmCall, parseJsonBlock } from "./anthropic";
+import { buildCompanyContextBlock, type CompanyContextWorkspace } from "./company-context-block";
 import {
   FreshdeskClient,
   type FreshdeskSolutionArticle,
@@ -106,12 +107,13 @@ export async function extractSkillsFromArticles(
   fd: FreshdeskClient,
   apiKey: string | undefined,
   perFolderArticles: Array<{ folderName: string; article: FreshdeskSolutionArticle }>,
+  companyContext?: CompanyContextWorkspace | null,
 ): Promise<FreshdeskExtractedSkill[]> {
   const out: FreshdeskExtractedSkill[] = [];
   for (const { folderName, article } of perFolderArticles) {
     if (!article.description_text || article.description_text.length < 80) continue;
     const text = await llmCall({
-      system: ARTICLE_SYSTEM,
+      system: buildCompanyContextBlock(companyContext) + ARTICLE_SYSTEM,
       userMessage: articleToText(article, folderName),
       maxTokens: 2500,
       model: "extract",
@@ -217,6 +219,7 @@ export async function extractSkillsFromTickets(
   apiKey: string | undefined,
   tickets: Array<{ ticket: FreshdeskTicket; conversations: FreshdeskConversation[] }>,
   opts: { groupLabel?: string; convosPerTicket?: number } = {},
+  companyContext?: CompanyContextWorkspace | null,
 ): Promise<FreshdeskExtractedSkill[]> {
   if (tickets.length === 0) return [];
 
@@ -243,7 +246,7 @@ export async function extractSkillsFromTickets(
     : `Extract recurring skills from these ${Math.min(30, tickets.length)} tickets:`;
 
   const text = await llmCall({
-    system: TICKETS_SYSTEM,
+    system: buildCompanyContextBlock(companyContext) + TICKETS_SYSTEM,
     userMessage: `${header}\n\n${userMsg}`,
     maxTokens: 4500,
     model: "extract",
@@ -304,11 +307,12 @@ Max 15 entries.`;
 export async function extractGlossaryFromFreshdesk(
   apiKey: string | undefined,
   texts: string[],
+  companyContext?: CompanyContextWorkspace | null,
 ): Promise<Array<{ term: string; definition: string; category: string }>> {
   if (texts.length === 0) return [];
   const blob = texts.slice(0, 30).map((t) => t.slice(0, 1500)).join("\n---\n");
   const text = await llmCall({
-    system: GLOSSARY_SYSTEM,
+    system: buildCompanyContextBlock(companyContext) + GLOSSARY_SYSTEM,
     userMessage: `Extract terms:\n\n${blob}`,
     maxTokens: 2048,
     model: "extract",

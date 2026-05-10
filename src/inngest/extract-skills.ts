@@ -51,6 +51,7 @@ export const extractSkills = inngest.createFunction(
           ch.name,
           messages,
           apiKey,
+          ws,
         ).catch((e) => {
           logger.warn(`skills LLM failed for ${ch.name}: ${e?.message}`);
           return [];

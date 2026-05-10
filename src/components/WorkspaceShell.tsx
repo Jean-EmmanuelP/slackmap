@@ -85,6 +85,25 @@ const GlossaryIcon = () => (
     <path d="M15.7 15.7c4.52-4.54 6.54-9.87 4.5-11.9-2.03-2.04-7.36-.02-11.9 4.5-4.52 4.54-6.54 9.87-4.5 11.9 2.03 2.04 7.36.02 11.9-4.5Z" />
   </svg>
 );
+const AgentIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={ICON}
+  >
+    <path d="M12 8V4H8" />
+    <rect width="16" height="12" x="4" y="8" rx="2" />
+    <path d="M2 14h2" />
+    <path d="M20 14h2" />
+    <path d="M15 13v2" />
+    <path d="M9 13v2" />
+  </svg>
+);
 const VaultIcon = () => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
@@ -101,27 +120,38 @@ const VaultIcon = () => (
   </svg>
 );
 
+import { LanguageToggle } from "@/components/LanguageToggle";
+import { t } from "@/lib/i18n-ui";
+
 export function WorkspaceShell({
   workspaceName,
   workspaceId,
   workspaceIconUrl,
+  workspaceLang,
   children,
 }: {
   workspaceName: string;
   workspaceId: string;
   workspaceIconUrl?: string | null;
+  workspaceLang?: string;
   children: ReactNode;
 }) {
+  // Read the cookie client-side so the sidebar nav labels react instantly to
+  // the language toggle. Server-rendered initial value comes from workspaceLang.
+  const lang = (typeof document !== "undefined"
+    ? (document.cookie.match(/(?:^|; )slackmap\.lang=([^;]+)/)?.[1])
+    : undefined) ?? workspaceLang ?? "en";
   const pathname = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
 
   const knowledge: NavItem[] = [
-    { href: `/atlas?ws=${workspaceId}`, key: "/atlas", label: "Atlas", icon: <AtlasIcon /> },
-    { href: `/people?ws=${workspaceId}`, key: "/people", label: "People", icon: <PeopleIcon /> },
-    { href: `/skills?ws=${workspaceId}`, key: "/skills", label: "Skills", icon: <SkillsIcon /> },
-    { href: `/glossary?ws=${workspaceId}`, key: "/glossary", label: "Glossary", icon: <GlossaryIcon /> },
-    { href: `/vaults?ws=${workspaceId}`, key: "/vault", label: "Vault", icon: <VaultIcon /> },
+    { href: `/atlas?ws=${workspaceId}`, key: "/atlas", label: t("nav.atlas", lang), icon: <AtlasIcon /> },
+    { href: `/people?ws=${workspaceId}`, key: "/people", label: t("nav.people", lang), icon: <PeopleIcon /> },
+    { href: `/skills?ws=${workspaceId}`, key: "/skills", label: t("nav.skills", lang), icon: <SkillsIcon /> },
+    { href: `/glossary?ws=${workspaceId}`, key: "/glossary", label: t("nav.glossary", lang), icon: <GlossaryIcon /> },
+    { href: `/agent?ws=${workspaceId}`, key: "/agent", label: t("nav.agent", lang), icon: <AgentIcon /> },
+    { href: `/vaults?ws=${workspaceId}`, key: "/vault", label: t("nav.vault", lang), icon: <VaultIcon /> },
   ];
 
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -160,7 +190,7 @@ export function WorkspaceShell({
         <div className="px-2 pt-3">
           <NavLink
             href={`/home?ws=${workspaceId}`}
-            label="Home"
+            label={t("nav.home", lang)}
             icon={<HomeIcon />}
             collapsed={collapsed}
             active={pathname.startsWith("/home")}
@@ -171,7 +201,7 @@ export function WorkspaceShell({
         <div className="px-2 mt-5">
           {!collapsed && (
             <div className="px-2 mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
-              Knowledge
+              {t("nav.knowledge", lang)}
             </div>
           )}
           <nav className="flex flex-col gap-px">
@@ -190,13 +220,16 @@ export function WorkspaceShell({
 
         <div className="mt-auto border-t border-zinc-200">
           <SignedInUser collapsed={collapsed} />
+          {workspaceLang && workspaceLang !== "en" && (
+            <LanguageToggle workspaceLang={workspaceLang} collapsed={collapsed} />
+          )}
           <div className="px-2 py-2 flex items-center justify-between border-t border-zinc-200">
             {!collapsed && (
               <button
                 onClick={() => setConfirmOpen(true)}
                 className="text-[11px] uppercase tracking-wider text-zinc-500 hover:text-zinc-900 px-2 py-1 font-[var(--font-mono)]"
               >
-                Disconnect
+                {t("nav.disconnect", lang)}
               </button>
             )}
             <button

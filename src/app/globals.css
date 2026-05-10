@@ -30,3 +30,30 @@ body {
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
+
+@keyframes ticker {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(2.2); opacity: 0; }
+}
+
+@keyframes verticalTicker {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(0, -50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[verticalTicker_28s_linear_infinite\] {
+    animation: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[ticker_42s_linear_infinite\] {
+    animation: none;
+  }
+}

@@ -7,6 +7,7 @@ import { MiningProgress } from "@/components/MiningProgress";
 import { PageHeader } from "@/components/PageHeader";
 import { getSessionUser } from "@/lib/supabase-server";
 import { userCanRead } from "@/lib/access";
+import { currentLang } from "@/lib/lang-server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,19 +25,22 @@ export default async function PeoplePage({
   const { data: workspace } = await db()
     .from("workspaces")
     .select(
-      "id, slack_team_name, slack_team_domain, slack_team_icon_url, backfill_status, backfill_progress, backfill_total, last_event_received_at",
+      "id, slack_team_name, slack_team_domain, slack_team_icon_url, backfill_status, backfill_progress, backfill_total, last_event_received_at, display_language",
     )
     .eq("id", ws)
     .maybeSingle();
   if (!workspace) redirect("/");
 
   const people = await listPeople(workspace.id as string);
+  const workspaceLang = (workspace.display_language as string | null) ?? "en";
+  const lang = await currentLang(workspaceLang);
 
   return (
     <WorkspaceShell
       workspaceName={workspace.slack_team_name as string}
       workspaceId={workspace.id as string}
       workspaceIconUrl={(workspace.slack_team_icon_url as string | null) ?? null}
+      workspaceLang={workspaceLang}
     >
       <PageHeader
         title="People"
@@ -50,7 +54,7 @@ export default async function PeoplePage({
         lastEventAt={workspace.last_event_received_at as string | null}
       />
       <MiningProgress workspaceId={workspace.id as string} />
-      <PeopleTable people={people} workspaceId={workspace.id as string} />
+      <PeopleTable people={people} workspaceId={workspace.id as string} lang={lang} />
     </WorkspaceShell>
   );
 }
