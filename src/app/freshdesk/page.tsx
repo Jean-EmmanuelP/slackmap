@@ -46,8 +46,10 @@ export default async function FreshdeskPage({
     allPeople,
     signalsCountRes,
     openSignalsRes,
-    pendingRuns,
-    sentRunsCountRes,
+    recentRuns,
+    pendingCountRes,
+    sentCountRes,
+    rejectedCountRes,
   ] = await Promise.all([
     listSkills(workspace.id as string),
     listGlossary(workspace.id as string),
@@ -61,15 +63,25 @@ export default async function FreshdeskPage({
       .select("urgency", { count: "exact" })
       .eq("workspace_id", workspace.id as string)
       .eq("status", "new"),
-    // Pending agent drafts — surfaced at the bottom of the tool page as the
-    // "Automations possibles" section. Limit to 8 to keep the page tight; the
-    // detail page (/agent/[runId]) handles individual review.
-    listAgentRuns(workspace.id as string, { status: ["pending"], limit: 8 }),
+    // The Inbox shows ALL recent runs (pending + sent + rejected) so Marc
+    // sees both what's awaiting him AND the history. The full queue with
+    // filters lives at /agent.
+    listAgentRuns(workspace.id as string, { limit: 20 }),
+    db()
+      .from("agent_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace.id as string)
+      .eq("status", "pending"),
     db()
       .from("agent_runs")
       .select("id", { count: "exact", head: true })
       .eq("workspace_id", workspace.id as string)
       .eq("status", "sent"),
+    db()
+      .from("agent_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace.id as string)
+      .eq("status", "rejected"),
   ]);
 
   const fdSkills = allSkills.filter((s) => s.source === "freshdesk");
@@ -124,17 +136,26 @@ export default async function FreshdeskPage({
         connectedAt={(workspace.freshdesk_connected_at as string | null) ?? null}
         status={(workspace.freshdesk_status as string | null) ?? null}
         anthropicKeySet={!!workspace.anthropic_key_set_at}
+        stripeConnected={!!workspace.stripe_key_set_at}
         lang={lang}
-        pendingRuns={pendingRuns.map((r) => ({
+        inboxRuns={recentRuns.map((r) => ({
           id: r.id,
           ticketSubject: r.ticket_subject,
           urgency: r.urgency,
           category: r.category,
           requesterEmail: r.requester_email,
           matchedSkillSlugs: r.matched_skill_slugs,
+          draftSnippet: r.draft_original
+            ? r.draft_original.slice(0, 180).replace(/\s+/g, " ").trim()
+            : null,
+          status: r.status,
           createdAt: r.created_at,
         }))}
-        sentCount={(sentRunsCountRes.count as number | null) ?? 0}
+        runCounts={{
+          pending: (pendingCountRes.count as number | null) ?? 0,
+          sent: (sentCountRes.count as number | null) ?? 0,
+          rejected: (rejectedCountRes.count as number | null) ?? 0,
+        }}
         totals={{
           skills: fdSkills.length,
           glossary: fdGlossary.length,
