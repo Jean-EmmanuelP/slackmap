@@ -2,8 +2,18 @@
 
 import { useState } from "react";
 import { FreshdeskSignalsPanel } from "@/components/FreshdeskSignalsPanel";
+import { t } from "@/lib/i18n-ui";
 
 type Domain = { domain: string; count: number; sample: string[]; topRecurrence: number };
+type PendingRun = {
+  id: string;
+  ticketSubject: string;
+  urgency: "low" | "medium" | "high" | "critical" | null;
+  category: string | null;
+  requesterEmail: string | null;
+  matchedSkillSlugs: string[];
+  createdAt: string;
+};
 type RecurringSkill = {
   slug: string;
   title: string;
@@ -27,17 +37,21 @@ export function FreshdeskInsights({
   connectedAt,
   status,
   anthropicKeySet,
+  lang,
   totals,
   domains,
   recurringSkills,
   agents,
   glossarySamples,
+  pendingRuns,
+  sentCount,
 }: {
   workspaceId: string;
   domain: string;
   connectedAt: string | null;
   status: string | null;
   anthropicKeySet: boolean;
+  lang: string;
   totals: {
     skills: number;
     glossary: number;
@@ -49,9 +63,32 @@ export function FreshdeskInsights({
   recurringSkills: RecurringSkill[];
   agents: Agent[];
   glossarySamples: GlossarySample[];
+  pendingRuns: PendingRun[];
+  sentCount: number;
 }) {
   const [reExtracting, setReExtracting] = useState(false);
   const [reExtractError, setReExtractError] = useState<string | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+
+  async function scanNow() {
+    setScanning(true);
+    setScanError(null);
+    try {
+      const res = await fetch(`/api/workspace/${workspaceId}/agent/tick`, {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.detail ?? body.error ?? `${res.status}`);
+      }
+      window.location.reload();
+    } catch (e) {
+      setScanError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setScanning(false);
+    }
+  }
 
   async function reRunExtraction() {
     setReExtracting(true);
@@ -279,7 +316,103 @@ export function FreshdeskInsights({
           </section>
         )}
       </div>
+
+      {/* Automations section — drafts the AI prepared on this tool. Lives at the
+       * bottom of the tool page so each connected tool (Freshdesk, Stripe, etc.)
+       * exposes its own automation queue in the same pattern. */}
+      <section className="mt-10 border-t border-zinc-200 pt-8">
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-1">
+          <div>
+            <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+              {t("fdAgent.title", lang)}
+            </div>
+            <h2 className="mt-1 text-xl font-medium tracking-tight text-zinc-900">
+              {pendingRuns.length}{" "}
+              <span className="text-sm font-normal text-zinc-500">
+                {t("fdAgent.pending", lang)}
+                {sentCount > 0 && ` · ${sentCount} sent`}
+              </span>
+            </h2>
+            <p className="mt-1 text-sm text-zinc-500 max-w-2xl">{t("fdAgent.subtitle", lang)}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={scanNow}
+              disabled={scanning}
+              className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+            >
+              {scanning ? t("fdAgent.scanning", lang) : t("fdAgent.scanNow", lang)}
+            </button>
+            {pendingRuns.length > 0 && (
+              <a
+                href={`/agent?ws=${workspaceId}`}
+                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800"
+              >
+                {t("fdAgent.viewAll", lang)}
+              </a>
+            )}
+          </div>
+        </div>
+        {scanError && (
+          <p className="mt-2 text-xs text-red-700 font-[var(--font-mono)]">{scanError}</p>
+        )}
+
+        {pendingRuns.length === 0 ? (
+          <div className="mt-5 border border-zinc-200 p-6 text-center">
+            <p className="text-sm text-zinc-600 max-w-md mx-auto">{t("fdAgent.empty", lang)}</p>
+          </div>
+        ) : (
+          <ul className="mt-5 divide-y divide-zinc-100 border border-zinc-200">
+            {pendingRuns.map((r) => (
+              <li key={r.id} className="px-4 py-3 hover:bg-zinc-50">
+                <a
+                  href={`/agent/${r.id}?ws=${workspaceId}`}
+                  className="flex items-start gap-3 group"
+                >
+                  <UrgencyBadge urgency={r.urgency} />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-zinc-900 truncate group-hover:underline">
+                      {r.ticketSubject}
+                    </div>
+                    <div className="mt-0.5 text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+                      {r.category ?? "support"}
+                      {r.requesterEmail && ` · ${r.requesterEmail}`}
+                      {r.matchedSkillSlugs.length > 0 &&
+                        ` · ${r.matchedSkillSlugs.length} skill${r.matchedSkillSlugs.length > 1 ? "s" : ""}`}
+                      {` · ${formatRelative(r.createdAt)}`}
+                    </div>
+                  </div>
+                  <span className="text-zinc-400 group-hover:text-zinc-900">→</span>
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
+  );
+}
+
+function UrgencyBadge({
+  urgency,
+}: {
+  urgency: "low" | "medium" | "high" | "critical" | null;
+}) {
+  const color =
+    urgency === "critical"
+      ? "bg-red-500"
+      : urgency === "high"
+        ? "bg-orange-400"
+        : urgency === "medium"
+          ? "bg-amber-300"
+          : "bg-zinc-300";
+  return (
+    <span
+      className={`mt-1.5 size-2 rounded-full shrink-0 ${color}`}
+      title={urgency ?? "low"}
+      aria-label={urgency ?? "low"}
+    />
   );
 }
 

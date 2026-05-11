@@ -21,7 +21,10 @@ import { draftReply, selectCandidateSkills } from "@/lib/agent/runtime";
 export const agentTick = inngest.createFunction(
   {
     id: "agent-tick",
-    triggers: [{ cron: "*/15 * * * *" }],
+    // Every hour on the hour. Support inbox doesn't need 15-min polling —
+    // Marc reviews drafts 2-3x per day. Hourly keeps the customer-wait-time
+    // under 1h while avoiding cron noise.
+    triggers: [{ cron: "0 * * * *" }],
   },
   async ({ step, logger }) => {
     const { data: workspaces } = await db()

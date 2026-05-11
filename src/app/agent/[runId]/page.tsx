@@ -27,7 +27,7 @@ export default async function AgentRunPage({
 
   const { data: workspace } = await db()
     .from("workspaces")
-    .select("id, slack_team_name, slack_team_icon_url, display_language")
+    .select("id, slack_team_name, slack_team_icon_url, display_language, freshdesk_domain, stripe_key_set_at")
     .eq("id", ws)
     .maybeSingle();
   if (!workspace) redirect("/");
@@ -41,6 +41,10 @@ export default async function AgentRunPage({
       workspaceId={workspace.id as string}
       workspaceIconUrl={(workspace.slack_team_icon_url as string | null) ?? null}
       workspaceLang={workspaceLang}
+      connectedTools={{
+        freshdesk: !!workspace.freshdesk_domain,
+        stripe: !!workspace.stripe_key_set_at,
+      }}
     >
       <AgentReviewer workspaceId={workspace.id as string} run={run} lang={lang} />
     </WorkspaceShell>

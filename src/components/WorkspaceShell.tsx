@@ -128,12 +128,15 @@ export function WorkspaceShell({
   workspaceId,
   workspaceIconUrl,
   workspaceLang,
+  connectedTools,
   children,
 }: {
   workspaceName: string;
   workspaceId: string;
   workspaceIconUrl?: string | null;
   workspaceLang?: string;
+  /** Tools connected to this workspace — drive the dynamic "Tools" sidebar group. */
+  connectedTools?: { freshdesk?: boolean; stripe?: boolean };
   children: ReactNode;
 }) {
   // Read the cookie client-side so the sidebar nav labels react instantly to
@@ -150,9 +153,21 @@ export function WorkspaceShell({
     { href: `/people?ws=${workspaceId}`, key: "/people", label: t("nav.people", lang), icon: <PeopleIcon /> },
     { href: `/skills?ws=${workspaceId}`, key: "/skills", label: t("nav.skills", lang), icon: <SkillsIcon /> },
     { href: `/glossary?ws=${workspaceId}`, key: "/glossary", label: t("nav.glossary", lang), icon: <GlossaryIcon /> },
-    { href: `/agent?ws=${workspaceId}`, key: "/agent", label: t("nav.agent", lang), icon: <AgentIcon /> },
     { href: `/vaults?ws=${workspaceId}`, key: "/vault", label: t("nav.vault", lang), icon: <VaultIcon /> },
   ];
+
+  // Tools group — only shows connected ones. Each tool item lands on its
+  // dedicated drill-down page (which now hosts its own agent drafts section).
+  const tools: NavItem[] = [];
+  if (connectedTools?.freshdesk) {
+    tools.push({
+      href: `/freshdesk?ws=${workspaceId}`,
+      key: "/freshdesk",
+      label: t("nav.freshdesk", lang),
+      icon: <AgentIcon />,
+    });
+  }
+  // Future: Stripe page, Gmail page, etc.
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -217,6 +232,29 @@ export function WorkspaceShell({
             ))}
           </nav>
         </div>
+
+        {/* Connected tools group — appears only when at least one tool is wired up */}
+        {tools.length > 0 && (
+          <div className="px-2 mt-5">
+            {!collapsed && (
+              <div className="px-2 mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+                {t("nav.tools", lang)}
+              </div>
+            )}
+            <nav className="flex flex-col gap-px">
+              {tools.map((tool) => (
+                <NavLink
+                  key={tool.key}
+                  href={tool.href}
+                  label={tool.label}
+                  icon={tool.icon}
+                  collapsed={collapsed}
+                  active={pathname.startsWith(tool.key)}
+                />
+              ))}
+            </nav>
+          </div>
+        )}
 
         <div className="mt-auto border-t border-zinc-200">
           <SignedInUser collapsed={collapsed} />

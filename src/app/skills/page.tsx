@@ -25,7 +25,7 @@ export default async function SkillsPage({
   const { data: workspace } = await db()
     .from("workspaces")
     .select(
-      "id, slack_team_name, slack_team_domain, slack_team_icon_url, backfill_status, backfill_progress, backfill_total, last_event_received_at, display_language",
+      "id, slack_team_name, slack_team_domain, slack_team_icon_url, backfill_status, backfill_progress, backfill_total, last_event_received_at, display_language, freshdesk_domain, stripe_key_set_at",
     )
     .eq("id", ws)
     .maybeSingle();
@@ -50,6 +50,10 @@ export default async function SkillsPage({
       workspaceId={workspace.id as string}
       workspaceIconUrl={(workspace.slack_team_icon_url as string | null) ?? null}
       workspaceLang={workspaceLang}
+      connectedTools={{
+        freshdesk: !!workspace.freshdesk_domain,
+        stripe: !!workspace.stripe_key_set_at,
+      }}
     >
       <PageHeader
         title="Skills"

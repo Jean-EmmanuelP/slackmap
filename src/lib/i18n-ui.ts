@@ -132,7 +132,19 @@ const MESSAGES: Record<string, Messages> = {
     "nav.glossary": "Glossary",
     "nav.vault": "Vault",
     "nav.agent": "Agent",
+    "nav.tools": "Connected tools",
+    "nav.freshdesk": "Freshdesk",
+    "nav.stripe": "Stripe",
     "nav.disconnect": "Disconnect",
+
+    // Freshdesk page — agent drafts section
+    "fdAgent.title": "Agent drafts",
+    "fdAgent.subtitle": "Replies the AI drafted for new tickets — review, edit, send. Every send teaches the brain.",
+    "fdAgent.empty": "No pending drafts. The hourly cron will queue new tickets here.",
+    "fdAgent.viewAll": "View all →",
+    "fdAgent.scanNow": "Scan now",
+    "fdAgent.scanning": "Scanning…",
+    "fdAgent.pending": "pending",
 
     // Domain → AI action recommendations
     "domain.support.action": "Auto-triage incoming tickets and draft first-line replies",
@@ -278,7 +290,19 @@ const MESSAGES: Record<string, Messages> = {
     "nav.glossary": "Glossaire",
     "nav.vault": "Coffre",
     "nav.agent": "Agent",
+    "nav.tools": "Outils connectés",
+    "nav.freshdesk": "Freshdesk",
+    "nav.stripe": "Stripe",
     "nav.disconnect": "Déconnexion",
+
+    // Freshdesk page — agent drafts section
+    "fdAgent.title": "Brouillons de l'agent",
+    "fdAgent.subtitle": "Réponses que l'IA a rédigées pour les nouveaux tickets — relis, édite, envoie. Chaque envoi enseigne au brain.",
+    "fdAgent.empty": "Aucun brouillon en attente. Le cron horaire ajoutera les nouveaux tickets ici.",
+    "fdAgent.viewAll": "Voir tout →",
+    "fdAgent.scanNow": "Scanner",
+    "fdAgent.scanning": "Scan en cours…",
+    "fdAgent.pending": "en attente",
 
     // Domain → AI action recommendations
     "domain.support.action": "Auto-trier les tickets entrants et rédiger les premières réponses",

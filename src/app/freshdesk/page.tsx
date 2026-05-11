@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { db, listSkills, listGlossary, listPeople } from "@/lib/db";
+import { db, listSkills, listGlossary, listPeople, listAgentRuns } from "@/lib/db";
 import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { FreshdeskInsights } from "@/components/FreshdeskInsights";
 import { getSessionUser } from "@/lib/supabase-server";
@@ -40,7 +40,15 @@ export default async function FreshdeskPage({
     redirect(`/home?ws=${workspace.id as string}`);
   }
 
-  const [allSkills, allGlossary, allPeople, signalsCountRes, openSignalsRes] = await Promise.all([
+  const [
+    allSkills,
+    allGlossary,
+    allPeople,
+    signalsCountRes,
+    openSignalsRes,
+    pendingRuns,
+    sentRunsCountRes,
+  ] = await Promise.all([
     listSkills(workspace.id as string),
     listGlossary(workspace.id as string),
     listPeople(workspace.id as string),
@@ -53,6 +61,15 @@ export default async function FreshdeskPage({
       .select("urgency", { count: "exact" })
       .eq("workspace_id", workspace.id as string)
       .eq("status", "new"),
+    // Pending agent drafts — surfaced at the bottom of the tool page as the
+    // "Automations possibles" section. Limit to 8 to keep the page tight; the
+    // detail page (/agent/[runId]) handles individual review.
+    listAgentRuns(workspace.id as string, { status: ["pending"], limit: 8 }),
+    db()
+      .from("agent_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("workspace_id", workspace.id as string)
+      .eq("status", "sent"),
   ]);
 
   const fdSkills = allSkills.filter((s) => s.source === "freshdesk");
@@ -99,6 +116,7 @@ export default async function FreshdeskPage({
       workspaceId={workspace.id as string}
       workspaceIconUrl={(workspace.slack_team_icon_url as string | null) ?? null}
       workspaceLang={workspaceLang}
+      connectedTools={{ freshdesk: true, stripe: !!workspace.stripe_key_set_at }}
     >
       <FreshdeskInsights
         workspaceId={workspace.id as string}
@@ -106,6 +124,17 @@ export default async function FreshdeskPage({
         connectedAt={(workspace.freshdesk_connected_at as string | null) ?? null}
         status={(workspace.freshdesk_status as string | null) ?? null}
         anthropicKeySet={!!workspace.anthropic_key_set_at}
+        lang={lang}
+        pendingRuns={pendingRuns.map((r) => ({
+          id: r.id,
+          ticketSubject: r.ticket_subject,
+          urgency: r.urgency,
+          category: r.category,
+          requesterEmail: r.requester_email,
+          matchedSkillSlugs: r.matched_skill_slugs,
+          createdAt: r.created_at,
+        }))}
+        sentCount={(sentRunsCountRes.count as number | null) ?? 0}
         totals={{
           skills: fdSkills.length,
           glossary: fdGlossary.length,
