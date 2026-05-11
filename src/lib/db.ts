@@ -244,6 +244,23 @@ export async function getWorkspaceFreshdesk(
   };
 }
 
+export async function getWorkspaceStripe(
+  workspaceId: string,
+): Promise<{ encryptedKey: string; accountId: string | null; livemode: boolean } | null> {
+  const { data, error } = await db()
+    .from("workspaces")
+    .select("encrypted_stripe_api_key, stripe_account_id, stripe_livemode")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data?.encrypted_stripe_api_key) return null;
+  return {
+    encryptedKey: data.encrypted_stripe_api_key as string,
+    accountId: (data.stripe_account_id as string | null) ?? null,
+    livemode: !!data.stripe_livemode,
+  };
+}
+
 export async function setFreshdeskStatus(
   workspaceId: string,
   status: Workspace["freshdesk_status"],

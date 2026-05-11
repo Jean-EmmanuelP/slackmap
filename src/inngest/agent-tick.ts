@@ -3,6 +3,7 @@ import {
   db,
   getWorkspace,
   getWorkspaceFreshdesk,
+  getWorkspaceStripe,
   listSkills,
   createAgentRun,
   setLastAgentTick,
@@ -11,6 +12,7 @@ import { decrypt } from "@/lib/crypto";
 import { FreshdeskClient } from "@/lib/freshdesk";
 import { loadWorkspaceApiKey } from "@/lib/extract/llm";
 import { draftReply, selectCandidateSkills } from "@/lib/agent/runtime";
+import { maybeFetchStripeContext } from "@/lib/agent/stripe-context";
 
 // Cron: every 15 minutes, walk every workspace with Freshdesk connected, pull
 // the new tickets since last tick, draft a reply via the agent runtime, and
@@ -60,6 +62,9 @@ export const agentTick = inngest.createFunction(
         const ws = await getWorkspace(wsId);
         const apiKey = await loadWorkspaceApiKey(wsId);
         const allSkills = await listSkills(wsId);
+        // Stripe connection (optional). When present, billing tickets get a
+        // customer snapshot pre-fetched and injected into the draft prompt.
+        const stripeConn = await getWorkspaceStripe(wsId);
 
         let queued = 0;
         for (const ticket of newTickets) {
@@ -70,12 +75,24 @@ export const agentTick = inngest.createFunction(
 
           const candidateSkills = selectCandidateSkills(ticket, allSkills, 20);
 
+          // Pre-fetch Stripe context if the ticket smells like billing AND Stripe
+          // is connected. Returns null cheaply when not applicable; never throws.
+          const stripeContext = await maybeFetchStripeContext(
+            ticket,
+            stripeConn?.encryptedKey ?? null,
+            decrypt,
+          ).catch((e) => {
+            logger.warn(`stripe ctx failed ticket ${ticket.id}: ${(e as Error).message}`);
+            return null;
+          });
+
           let draftResult;
           try {
             draftResult = await draftReply({
               workspace: ws,
               ticket,
               candidateSkills,
+              stripeContext: stripeContext ?? undefined,
               apiKey,
             });
           } catch (e) {
