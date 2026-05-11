@@ -26,7 +26,13 @@ export const agentTick = inngest.createFunction(
     // Every hour on the hour. Support inbox doesn't need 15-min polling —
     // Marc reviews drafts 2-3x per day. Hourly keeps the customer-wait-time
     // under 1h while avoiding cron noise.
-    triggers: [{ cron: "0 * * * *" }],
+    //
+    // Also listens on `agent/tick.manual` so the "Scan now" button on
+    // /freshdesk can force an immediate tick without waiting for the cron.
+    triggers: [
+      { cron: "0 * * * *" },
+      { event: "agent/tick.manual" },
+    ],
   },
   async ({ step, logger }) => {
     const { data: workspaces } = await db()
