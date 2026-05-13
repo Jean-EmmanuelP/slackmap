@@ -239,6 +239,10 @@ export default async function HomePage({
       workspaceId={workspace.id as string}
       workspaceIconUrl={(workspace.slack_team_icon_url as string | null) ?? null}
       workspaceLang={workspaceLang}
+      connectedTools={{
+        freshdesk: !!workspace.freshdesk_domain,
+        stripe: !!workspace.stripe_key_set_at,
+      }}
     >
       <HomeDashboard
         workspaceId={workspace.id as string}
