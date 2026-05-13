@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { FreshdeskSignalsPanel } from "@/components/FreshdeskSignalsPanel";
 import { StripeKeyModal } from "@/components/StripeKeyModal";
+import { SlackContextPanel } from "@/components/SlackContextPanel";
 import { t } from "@/lib/i18n-ui";
 
 type Domain = { domain: string; count: number; sample: string[]; topRecurrence: number };
@@ -211,6 +212,11 @@ export function FreshdeskInsights({
           </button>
         </div>
       )}
+
+      {/* Slack-as-context panel: which channels the agent listens to for
+       * grounding drafts in real dev/ops state. Hidden when there are zero
+       * channel suggestions (workspace hasn't mined Slack yet). */}
+      <SlackContextPanel workspaceId={workspaceId} lang={lang} />
 
       {/* === INBOX (the primary daily workflow surface) =====================
        *

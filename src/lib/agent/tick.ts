@@ -8,6 +8,8 @@ import {
   getWorkspace,
   getWorkspaceFreshdesk,
   getWorkspaceStripe,
+  getSlackContextChannelIds,
+  listChannels,
   listSkills,
   createAgentRun,
   setLastAgentTick,
@@ -15,8 +17,10 @@ import {
 import { decrypt } from "@/lib/crypto";
 import { FreshdeskClient } from "@/lib/freshdesk";
 import { loadWorkspaceApiKey } from "@/lib/extract/llm";
+import { slackUserOrBotClient } from "@/lib/slack";
 import { draftReply, selectCandidateSkills } from "./runtime";
 import { maybeFetchStripeContext } from "./stripe-context";
+import { buildSlackContextBlock } from "./slack-context";
 
 const OPEN_STATUSES = new Set([2, 3]);
 export const MAX_DRAFTS_PER_TICK = 20;
@@ -100,6 +104,30 @@ export async function tickWorkspace(workspaceId: string): Promise<TickResult> {
   const allSkills = await listSkills(workspaceId);
   const stripeConn = await getWorkspaceStripe(workspaceId);
 
+  // Slack context: fetch the last ~30 messages from each nominated channel
+  // ONCE per tick (not per ticket) — same context applies to every ticket
+  // drafted in this batch. Tokens cost is amortised across all drafts.
+  let slackContextBlock: string | null = null;
+  try {
+    const contextChannelIds = await getSlackContextChannelIds(workspaceId);
+    if (contextChannelIds.length > 0) {
+      const allChannels = await listChannels(workspaceId);
+      const selectedChannels = allChannels
+        .filter((c) => contextChannelIds.includes(c.slack_channel_id))
+        .map((c) => ({ slack_channel_id: c.slack_channel_id, name: c.name }));
+      if (selectedChannels.length > 0) {
+        const { client: slack } = slackUserOrBotClient({
+          encrypted_user_token: ws.encrypted_user_token,
+          encrypted_bot_token: ws.encrypted_bot_token,
+        });
+        slackContextBlock = await buildSlackContextBlock(slack, selectedChannels, 30);
+      }
+    }
+  } catch {
+    // Slack fetch failures don't block drafting — drafts work without this
+    // context, just less grounded. Caller can see via debug if needed.
+  }
+
   for (const ticket of toDraft) {
     const candidateSkills = selectCandidateSkills(ticket, allSkills, 20);
 
@@ -116,6 +144,7 @@ export async function tickWorkspace(workspaceId: string): Promise<TickResult> {
         ticket,
         candidateSkills,
         stripeContext: stripeContext ?? undefined,
+        slackContext: slackContextBlock ?? undefined,
         apiKey,
       });
     } catch (e) {

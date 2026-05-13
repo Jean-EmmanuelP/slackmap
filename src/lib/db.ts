@@ -244,6 +244,31 @@ export async function getWorkspaceFreshdesk(
   };
 }
 
+export async function getSlackContextChannelIds(workspaceId: string): Promise<string[]> {
+  const { data, error } = await db()
+    .from("workspaces")
+    .select("slack_context_channel_ids")
+    .eq("id", workspaceId)
+    .maybeSingle();
+  if (error) throw error;
+  const ids = (data?.slack_context_channel_ids as string[] | null) ?? [];
+  return Array.isArray(ids) ? ids : [];
+}
+
+export async function setSlackContextChannelIds(
+  workspaceId: string,
+  slackChannelIds: string[],
+): Promise<void> {
+  const { error } = await db()
+    .from("workspaces")
+    .update({
+      slack_context_channel_ids: slackChannelIds,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", workspaceId);
+  if (error) throw error;
+}
+
 export async function getWorkspaceStripe(
   workspaceId: string,
 ): Promise<{ encryptedKey: string; accountId: string | null; livemode: boolean } | null> {

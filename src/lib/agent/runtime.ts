@@ -137,6 +137,9 @@ export type AgentRuntimeInput = {
   candidateSkills: Skill[];
   // Stripe context — pre-fetched if the ticket smells like billing/subscription
   stripeContext?: string;
+  // Slack context — recent messages from nominated dev/ops channels. Gives
+  // the LLM grounding to cite real fix timelines, known bugs, ongoing work.
+  slackContext?: string;
   apiKey?: string;
 };
 
@@ -146,6 +149,7 @@ You will receive:
   - The Freshdesk ticket (subject + body + thread so far)
   - The company's relevant operational skills (procedures, policies)
   - Optional Stripe context (the customer's subscription / invoice state) when the ticket is billing-related
+  - Optional Slack context (RECENT dev/ops/bug-support channel chatter) so you can cite real fix timelines, known bugs, ongoing work — without inventing them
 
 Output ONLY a single JSON object:
 {
@@ -212,7 +216,8 @@ export async function draftReply(input: AgentRuntimeInput): Promise<AgentDraftRe
   const userMessage =
     `${buildTicketBlock(input.ticket, input.conversation)}\n\n` +
     `## Relevant skills from the company brain\n\n${buildSkillsBlock(input.candidateSkills)}\n` +
-    (input.stripeContext ? `\n## Stripe customer context\n${input.stripeContext}\n` : "");
+    (input.stripeContext ? `\n## Stripe customer context\n${input.stripeContext}\n` : "") +
+    (input.slackContext ? `\n## Recent Slack context — dev/ops discussions\n${input.slackContext}\n` : "");
 
   const text = await llmCall({
     system,
