@@ -81,16 +81,30 @@ export async function tickWorkspace(workspaceId: string): Promise<TickResult> {
   const ticketIds = candidates.map((t) => t.id);
   const { data: existingRuns } = await db()
     .from("agent_runs")
-    .select("ticket_id")
+    .select("ticket_id, status, draft_original")
     .eq("workspace_id", workspaceId)
     .in("ticket_id", ticketIds);
-  const alreadyDrafted = new Set(
-    (existingRuns ?? []).map((r) => r.ticket_id as number),
-  );
-  result.alreadyDrafted = alreadyDrafted.size;
+  // A ticket is "really drafted" only if a previous tick produced an actual
+  // draft. Orphan rows (status=pending + draft_original=null, leftover from
+  // before the prompt was loosened) get retried via upsert so the system
+  // self-heals without manual DB deletes.
+  const reallyDrafted = new Set<number>();
+  const orphanRetry = new Set<number>();
+  for (const r of existingRuns ?? []) {
+    const tid = r.ticket_id as number;
+    if (r.draft_original) {
+      reallyDrafted.add(tid);
+    } else if (r.status === "pending") {
+      orphanRetry.add(tid);
+    } else {
+      // rejected/failed without draft — human decided, leave alone
+      reallyDrafted.add(tid);
+    }
+  }
+  result.alreadyDrafted = reallyDrafted.size;
 
   const toDraft = candidates
-    .filter((t) => !alreadyDrafted.has(t.id))
+    .filter((t) => !reallyDrafted.has(t.id))
     .slice(0, MAX_DRAFTS_PER_TICK);
   result.attempted = toDraft.length;
 
@@ -170,6 +184,10 @@ export async function tickWorkspace(workspaceId: string): Promise<TickResult> {
       reasoning: draftResult.reasoning,
       matchedSkillSlugs: draftResult.matchedSkillSlugs,
       status: draftResult.decision === "spam" ? "rejected" : "pending",
+      // If a previous tick left this ticket as an orphan (pending row,
+      // null draft), overwrite it with the fresh attempt — the orphan
+      // contributed nothing useful to the reviewer anyway.
+      upsert: orphanRetry.has(ticket.id),
     });
     if (created) result.drafted += 1;
   }

@@ -689,29 +689,36 @@ export async function createAgentRun(input: {
   reasoning: string | null;
   matchedSkillSlugs: string[];
   status: AgentRun["status"];
+  /** When true and a row already exists for (workspace_id, ticket_id), the
+   * existing row is OVERWRITTEN with the new draft/reasoning/etc. Used when
+   * an earlier tick left an orphan (draft_original=null) and we want a fresh
+   * attempt now that context is richer (Slack channels configured, prompt
+   * loosened, etc.). Default false = preserve historical behaviour. */
+  upsert?: boolean;
 }): Promise<AgentRun | null> {
-  const { data, error } = await db()
-    .from("agent_runs")
-    .insert({
-      workspace_id: input.workspaceId,
-      ticket_id: input.ticketId,
-      ticket_subject: input.ticketSubject,
-      ticket_url: input.ticketUrl,
-      ticket_body: input.ticketBody,
-      requester_email: input.requesterEmail,
-      ticket_priority: input.ticketPriority,
-      ticket_created_at: input.ticketCreatedAt,
-      urgency: input.urgency,
-      category: input.category,
-      draft_original: input.draftOriginal,
-      reasoning: input.reasoning,
-      matched_skill_slugs: input.matchedSkillSlugs,
-      status: input.status,
-    })
+  const payload = {
+    workspace_id: input.workspaceId,
+    ticket_id: input.ticketId,
+    ticket_subject: input.ticketSubject,
+    ticket_url: input.ticketUrl,
+    ticket_body: input.ticketBody,
+    requester_email: input.requesterEmail,
+    ticket_priority: input.ticketPriority,
+    ticket_created_at: input.ticketCreatedAt,
+    urgency: input.urgency,
+    category: input.category,
+    draft_original: input.draftOriginal,
+    reasoning: input.reasoning,
+    matched_skill_slugs: input.matchedSkillSlugs,
+    status: input.status,
+  };
+  const builder = input.upsert
+    ? db().from("agent_runs").upsert(payload, { onConflict: "workspace_id,ticket_id" })
+    : db().from("agent_runs").insert(payload);
+  const { data, error } = await builder
     .select("*")
     .single();
   if (error) {
-    // Unique violation = ticket already processed; that's expected on re-runs.
     if (error.code === "23505") return null;
     throw error;
   }
