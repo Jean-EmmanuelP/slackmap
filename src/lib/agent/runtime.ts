@@ -165,11 +165,23 @@ Rules:
 - Output the draft in the SAME language as the customer wrote (French if French, English if English).
 - Match the company's tone from the skills (concise, direct, warm).
 - Cite skills by their slug in matched_skill_slugs (only if you actually grounded the draft on them).
-- If the matched skills don't cover the ticket: decision="needs_human" with draft=null and reasoning explaining what context the human needs.
-- If the ticket is empty/spam/test: decision="skip" with draft=null.
-- NEVER make up policy or commitments not supported by the skills.
-- NEVER promise refunds or actions you don't see authorised in the skills.
-- Keep drafts under 200 words. The reviewer will edit before sending.`;
+
+CRITICAL — always produce a USEFUL draft, even when full resolution requires a human:
+- For genuine support tickets, ALWAYS write a draft. It's a starting point for the reviewer, not the final word.
+- When skills fully cover the ticket → draft the actual solution. decision="draft".
+- When skills only partially cover OR more diagnostic info is needed → draft a SAFE HOLDING RESPONSE:
+    1) acknowledge the issue in the customer's tone
+    2) ask the specific clarifying questions needed (device, OS, exact error, screenshots, account email if missing)
+    3) commit to a next step ("our team is checking", "I'll come back to you within Xh") — only commit to timing if the skills or Slack context support it; otherwise stay vague ("dès que possible")
+   Set decision="needs_human" so the reviewer knows it requires escalation, but FILL draft with the holding response. NEVER return draft=null on a real ticket.
+- Only return draft=null when the ticket is genuinely empty/spam/test (decision="skip").
+
+Never make stuff up:
+- NEVER invent policy or commitments not supported by the skills.
+- NEVER promise refunds, cancellations, or specific outcomes unless a skill or the Stripe/Slack context explicitly authorises it.
+- NEVER cite fix timelines unless the Slack context shows them. If unsure, write "our engineering team is investigating".
+
+Length: drafts under 200 words. The reviewer will edit before sending.`;
 
 function buildSkillsBlock(skills: Skill[]): string {
   if (skills.length === 0) return "(no matching skills found in the catalog)";
