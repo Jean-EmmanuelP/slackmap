@@ -77,6 +77,15 @@ export function FreshdeskInsights({
   const [reExtractError, setReExtractError] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState<string | null>(null);
+  const [scanResult, setScanResult] = useState<{
+    pulled: number;
+    candidates: number;
+    alreadyDrafted: number;
+    attempted: number;
+    drafted: number;
+    failures: Array<{ ticketId: number; reason: string }>;
+    skipped?: string;
+  } | null>(null);
   const [stripeModalOpen, setStripeModalOpen] = useState(false);
 
   async function reRunExtraction() {
@@ -103,15 +112,29 @@ export function FreshdeskInsights({
   async function scanNow() {
     setScanning(true);
     setScanError(null);
+    setScanResult(null);
     try {
       const res = await fetch(`/api/workspace/${workspaceId}/agent/tick`, {
         method: "POST",
       });
+      const body = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
         throw new Error(body.detail ?? body.error ?? `${res.status}`);
       }
-      window.location.reload();
+      setScanResult({
+        pulled: body.pulled ?? 0,
+        candidates: body.candidates ?? 0,
+        alreadyDrafted: body.alreadyDrafted ?? 0,
+        attempted: body.attempted ?? 0,
+        drafted: body.drafted ?? 0,
+        failures: Array.isArray(body.failures) ? body.failures : [],
+        skipped: body.skipped,
+      });
+      // Only reload if drafts were actually created. Otherwise leave the
+      // result on screen so the user can see what's going on.
+      if (body.drafted && body.drafted > 0) {
+        setTimeout(() => window.location.reload(), 1200);
+      }
     } catch (e) {
       setScanError(e instanceof Error ? e.message : "Failed");
     } finally {
@@ -234,6 +257,62 @@ export function FreshdeskInsights({
         </div>
         {scanError && (
           <p className="mt-2 text-xs text-red-700 font-[var(--font-mono)]">{scanError}</p>
+        )}
+        {scanResult && (
+          <div className="mt-3 border border-zinc-200 bg-zinc-50/50 px-4 py-3 text-xs space-y-1 font-[var(--font-mono)] text-zinc-700">
+            {scanResult.skipped && (
+              <div className="text-amber-800">⚠ {scanResult.skipped}</div>
+            )}
+            <div>
+              Pulled <span className="font-medium text-zinc-900">{scanResult.pulled}</span> recent
+              tickets · <span className="font-medium text-zinc-900">{scanResult.candidates}</span>{" "}
+              open
+            </div>
+            <div>
+              Already had a draft:{" "}
+              <span className="font-medium text-zinc-900">{scanResult.alreadyDrafted}</span> · this
+              tick attempted{" "}
+              <span className="font-medium text-zinc-900">{scanResult.attempted}</span> →{" "}
+              <span className="font-medium text-emerald-700">
+                {scanResult.drafted} drafted
+              </span>
+              {scanResult.failures.length > 0 && (
+                <>
+                  {" "}
+                  ·{" "}
+                  <span className="text-red-700">
+                    {scanResult.failures.length} failed
+                  </span>
+                </>
+              )}
+            </div>
+            {scanResult.failures.length > 0 && (
+              <details className="mt-1">
+                <summary className="cursor-pointer text-red-700">Show failures</summary>
+                <ul className="mt-1 space-y-0.5 ml-4">
+                  {scanResult.failures.slice(0, 10).map((f, i) => (
+                    <li key={i} className="text-red-800">
+                      Ticket #{f.ticketId}: {f.reason}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+            {scanResult.attempted === 0 && scanResult.candidates === 0 && (
+              <div className="text-zinc-500 italic">
+                No open tickets in the last 100 recently-updated. If you have open tickets in
+                Freshdesk that aren't appearing, the API key may lack read permissions, or all
+                recent activity is on closed/resolved tickets.
+              </div>
+            )}
+            {scanResult.attempted === 0 &&
+              scanResult.candidates > 0 &&
+              scanResult.alreadyDrafted === scanResult.candidates && (
+                <div className="text-zinc-500 italic">
+                  All open tickets already have drafts — page should be showing them.
+                </div>
+              )}
+          </div>
         )}
 
         {inboxRuns.length === 0 ? (
