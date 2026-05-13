@@ -14,21 +14,38 @@ import { loadWorkspaceApiKey } from "@/lib/extract/llm";
 import { draftReply, selectCandidateSkills } from "@/lib/agent/runtime";
 import { maybeFetchStripeContext } from "@/lib/agent/stripe-context";
 
-// Cron: every 15 minutes, walk every workspace with Freshdesk connected, pull
-// the new tickets since last tick, draft a reply via the agent runtime, and
-// queue it as a `pending` agent_run for human review on /agent.
+// Hourly + on-demand sweep. For each workspace with Freshdesk connected:
 //
-// Idempotent thanks to the unique (workspace_id, ticket_id) constraint on
+//   1. Pull the 100 most recently updated tickets
+//   2. Keep only open / pending ones (status 2 + 3); drop closed, resolved, spam
+//   3. Skip tickets that ALREADY have an agent_run (any status) — we draft each
+//      ticket exactly once for v1. Customer reply triggering a re-draft is a v2.
+//   4. Cap to MAX_DRAFTS_PER_TICK to bound LLM cost per run
+//   5. For each survivor: pre-fetch Stripe context (billing tickets only),
+//      call draftReply, persist as agent_run with status=pending.
+//
+// This model means: as soon as the workspace is connected, the next tick
+// backfills the entire open inbox — the user sees drafts on first visit,
+// not "wait until something new arrives."
+//
+// Idempotent via the unique (workspace_id, ticket_id) constraint on
 // agent_runs — re-running on the same ticket is a no-op.
+//
+// Open Freshdesk ticket statuses:
+//   2 = Open, 3 = Pending, 4 = Resolved, 5 = Closed
+const OPEN_STATUSES = new Set([2, 3]);
+
+// Bound LLM cost per tick. 20 drafts × ~1500 output tokens ≈ 30k tokens/tick
+// per workspace. Hourly = 720k tokens/day worst case. Anything above this
+// suggests volume that should move to native tool-use with streaming.
+const MAX_DRAFTS_PER_TICK = 20;
+
 export const agentTick = inngest.createFunction(
   {
     id: "agent-tick",
-    // Every hour on the hour. Support inbox doesn't need 15-min polling —
-    // Marc reviews drafts 2-3x per day. Hourly keeps the customer-wait-time
-    // under 1h while avoiding cron noise.
-    //
-    // Also listens on `agent/tick.manual` so the "Scan now" button on
-    // /freshdesk can force an immediate tick without waiting for the cron.
+    // Every hour on the hour. Also listens on `agent/tick.manual` so the
+    // "Scan now" button on /freshdesk can force an immediate tick without
+    // waiting for the cron.
     triggers: [
       { cron: "0 * * * *" },
       { event: "agent/tick.manual" },
@@ -37,7 +54,7 @@ export const agentTick = inngest.createFunction(
   async ({ step, logger }) => {
     const { data: workspaces } = await db()
       .from("workspaces")
-      .select("id, freshdesk_domain, last_agent_tick_at")
+      .select("id, freshdesk_domain")
       .not("freshdesk_domain", "is", null);
     if (!workspaces || workspaces.length === 0) return { skipped: "no workspaces" };
 
@@ -49,40 +66,63 @@ export const agentTick = inngest.createFunction(
         if (!conn) return { workspaceId: wsId, queued: 0, skipped: "no freshdesk" };
 
         const fd = new FreshdeskClient(conn.domain, decrypt(conn.encryptedKey));
-        const since =
-          (w.last_agent_tick_at as string | null) ??
-          new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-        const newTickets = await fd
-          .listTicketsUpdatedSince(since, { perPage: 50, pages: 2 })
+        // Pull last 100 most-recently-updated tickets. We don't use a
+        // since-timestamp window here on purpose — we want to backfill
+        // any open ticket without a draft, not only "new" ones.
+        const recentTickets = await fd
+          .listRecentTickets({ perPage: 100, pages: 1 })
           .catch((e) => {
             logger.warn(`fd list failed for ${wsId}: ${(e as Error).message}`);
             return [];
           });
 
-        if (newTickets.length === 0) {
+        // Only open / pending tickets, and only ones not yet drafted.
+        const candidates = recentTickets.filter(
+          (t) => OPEN_STATUSES.has(t.status) && !(t as { spam?: boolean }).spam,
+        );
+
+        if (candidates.length === 0) {
           await setLastAgentTick(wsId, new Date().toISOString());
           return { workspaceId: wsId, queued: 0, considered: 0 };
+        }
+
+        // Skip tickets that already have an agent_run (any status). v1
+        // contract: one draft per ticket. Customer replies triggering a
+        // re-draft come in v2.
+        const ticketIds = candidates.map((t) => t.id);
+        const { data: existingRuns } = await db()
+          .from("agent_runs")
+          .select("ticket_id")
+          .eq("workspace_id", wsId)
+          .in("ticket_id", ticketIds);
+        const alreadyDrafted = new Set(
+          (existingRuns ?? []).map((r) => r.ticket_id as number),
+        );
+
+        const toDraft = candidates
+          .filter((t) => !alreadyDrafted.has(t.id))
+          .slice(0, MAX_DRAFTS_PER_TICK);
+
+        if (toDraft.length === 0) {
+          await setLastAgentTick(wsId, new Date().toISOString());
+          return {
+            workspaceId: wsId,
+            queued: 0,
+            considered: candidates.length,
+            note: "all open tickets already drafted",
+          };
         }
 
         const ws = await getWorkspace(wsId);
         const apiKey = await loadWorkspaceApiKey(wsId);
         const allSkills = await listSkills(wsId);
-        // Stripe connection (optional). When present, billing tickets get a
-        // customer snapshot pre-fetched and injected into the draft prompt.
         const stripeConn = await getWorkspaceStripe(wsId);
 
         let queued = 0;
-        for (const ticket of newTickets) {
-          // Only drafted on customer-incoming tickets — skip outbound notifications,
-          // already-closed tickets, and our own internal noise.
-          if (ticket.status === 5) continue; // closed
-          if ((ticket as { spam?: boolean }).spam) continue;
-
+        for (const ticket of toDraft) {
           const candidateSkills = selectCandidateSkills(ticket, allSkills, 20);
 
-          // Pre-fetch Stripe context if the ticket smells like billing AND Stripe
-          // is connected. Returns null cheaply when not applicable; never throws.
           const stripeContext = await maybeFetchStripeContext(
             ticket,
             stripeConn?.encryptedKey ?? null,
@@ -126,7 +166,12 @@ export const agentTick = inngest.createFunction(
         }
 
         await setLastAgentTick(wsId, new Date().toISOString());
-        return { workspaceId: wsId, queued, considered: newTickets.length };
+        return {
+          workspaceId: wsId,
+          queued,
+          considered: candidates.length,
+          alreadyDrafted: alreadyDrafted.size,
+        };
       });
 
       totalQueued += (result as { queued: number }).queued ?? 0;
