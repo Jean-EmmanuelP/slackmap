@@ -134,6 +134,7 @@ export default async function FreshdeskPage({
         workspaceId={workspace.id as string}
         domain={workspace.freshdesk_domain as string}
         connectedAt={(workspace.freshdesk_connected_at as string | null) ?? null}
+        lastAgentTickAt={(workspace.last_agent_tick_at as string | null) ?? null}
         status={(workspace.freshdesk_status as string | null) ?? null}
         anthropicKeySet={!!workspace.anthropic_key_set_at}
         stripeConnected={!!workspace.stripe_key_set_at}

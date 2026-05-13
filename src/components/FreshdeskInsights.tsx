@@ -41,6 +41,7 @@ export function FreshdeskInsights({
   workspaceId,
   domain,
   connectedAt,
+  lastAgentTickAt,
   status,
   anthropicKeySet,
   stripeConnected,
@@ -56,6 +57,9 @@ export function FreshdeskInsights({
   workspaceId: string;
   domain: string;
   connectedAt: string | null;
+  /** Last time the agent tick ran. The "real" sync activity timestamp,
+   * unlike connectedAt which is just "when Freshdesk was first wired up". */
+  lastAgentTickAt: string | null;
   status: string | null;
   anthropicKeySet: boolean;
   stripeConnected: boolean;
@@ -186,37 +190,53 @@ export function FreshdeskInsights({
         </div>
       )}
 
-      {/* Stripe nudge / connected confirmation. Sits right under the Anthropic
-       * warning because: (a) billing tickets are ~30% of the queue and (b) the
-       * agent quality on those tickets is gated on Stripe being connected. */}
-      {stripeConnected ? (
-        <div className="mt-3 border border-emerald-200 bg-emerald-50/40 px-4 py-2 flex items-center gap-3 text-xs">
-          <span className="size-1.5 rounded-full bg-emerald-500" />
-          <span className="text-emerald-900 font-[var(--font-mono)] uppercase tracking-wider text-[10px]">
-            {t("fdStripe.connected", lang)}
-          </span>
-        </div>
-      ) : (
-        <div className="mt-3 border border-indigo-200 bg-indigo-50/40 px-4 py-3 flex items-start gap-3 text-xs">
-          <span className="size-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
-          <div className="flex-1">
-            <div className="font-medium text-indigo-900">{t("fdStripe.title", lang)}</div>
-            <p className="mt-0.5 text-zinc-700 leading-relaxed">{t("fdStripe.body", lang)}</p>
+      {/* Setup row — Stripe + Slack side by side, equal visual weight. Both
+       * are config tools for the agent's context (billing data + dev/ops
+       * chatter), so they read as siblings. Each tile is indigo when not
+       * configured (CTA) and emerald when configured (confirmation). The
+       * Anthropic warning above stays full-width because it's a hard error
+       * that blocks everything else, not a config nudge. */}
+      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+        {/* Stripe tile */}
+        {stripeConnected ? (
+          <div className="border border-emerald-200 bg-emerald-50/40 px-4 py-3 flex items-start gap-3 text-xs h-full">
+            <span className="size-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-emerald-900">
+                {lang === "fr" ? "Stripe connecté" : "Stripe connected"}
+              </div>
+              <p className="mt-0.5 text-zinc-700 leading-snug">
+                {lang === "fr"
+                  ? "L'agent cite le statut d'abonnement réel, la dernière facture, l'éligibilité au remboursement."
+                  : "Agent cites real subscription status, last invoice, refund eligibility."}
+              </p>
+              <p className="mt-1 text-[11px] text-zinc-500 leading-snug">
+                {lang === "fr"
+                  ? "Ex : « votre abonnement Pro est actif jusqu'au 12 juin, dernière facture impayée du 3 mai »."
+                  : "E.g.: \"your Pro plan runs through June 12, last invoice unpaid from May 3\"."}
+              </p>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setStripeModalOpen(true)}
-            className="shrink-0 text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-indigo-900 bg-indigo-900 text-white hover:bg-indigo-800"
-          >
-            {t("fdStripe.cta", lang)}
-          </button>
-        </div>
-      )}
+        ) : (
+          <div className="border border-indigo-200 bg-indigo-50/40 px-4 py-3 flex items-start gap-3 text-xs h-full">
+            <span className="size-1.5 rounded-full bg-indigo-500 mt-1.5 shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-indigo-900">{t("fdStripe.title", lang)}</div>
+              <p className="mt-0.5 text-zinc-700 leading-snug">{t("fdStripe.body", lang)}</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setStripeModalOpen(true)}
+              className="shrink-0 text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-indigo-900 bg-indigo-900 text-white hover:bg-indigo-800"
+            >
+              {t("fdStripe.cta", lang)}
+            </button>
+          </div>
+        )}
 
-      {/* Slack-as-context panel: which channels the agent listens to for
-       * grounding drafts in real dev/ops state. Hidden when there are zero
-       * channel suggestions (workspace hasn't mined Slack yet). */}
-      <SlackContextPanel workspaceId={workspaceId} lang={lang} />
+        {/* Slack tile — same visual contract, see SlackContextPanel */}
+        <SlackContextPanel workspaceId={workspaceId} lang={lang} />
+      </div>
 
       {/* === INBOX (the primary daily workflow surface) =====================
        *
@@ -242,19 +262,22 @@ export function FreshdeskInsights({
             </h2>
             <p className="mt-1 text-sm text-zinc-500 max-w-2xl">{t("fdInbox.subtitle", lang)}</p>
           </div>
+          {/* Scanner is the primary action — it's what makes the queue fill.
+           * "Open queue" is secondary (you only need it if you want filters /
+           * full history beyond the 20 shown here). */}
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={scanNow}
               disabled={scanning}
-              className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+              className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800 disabled:opacity-50"
             >
               {scanning ? t("fdInbox.scanning", lang) : t("fdInbox.scanNow", lang)}
             </button>
             {inboxRuns.length > 0 && (
               <a
                 href={`/agent?ws=${workspaceId}`}
-                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800"
+                className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
               >
                 {t("fdInbox.viewAll", lang)}
               </a>
@@ -387,7 +410,11 @@ export function FreshdeskInsights({
         <Stat label="Glossary" value={totals.glossary} hint="terms" />
         <Stat label="Team" value={totals.agents} hint="profiled" />
         <Stat label="Signals" value={totals.signalsTotal} hint={`${totals.signalsNew} new`} />
-        <Stat label="Last sync" value={connectedAt ? formatRelative(connectedAt) : "—"} mono />
+        <Stat
+          label={lang === "fr" ? "Dernier scan" : "Last scan"}
+          value={lastAgentTickAt ? formatRelative(lastAgentTickAt) : (lang === "fr" ? "jamais" : "never")}
+          mono
+        />
       </section>
 
       <div className="mt-4 flex items-center gap-2 flex-wrap">
