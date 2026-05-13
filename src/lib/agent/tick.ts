@@ -183,6 +183,7 @@ export async function tickWorkspace(workspaceId: string): Promise<TickResult> {
       draftOriginal: draftResult.draft,
       reasoning: draftResult.reasoning,
       matchedSkillSlugs: draftResult.matchedSkillSlugs,
+      proposedActions: draftResult.proposedActions,
       status: draftResult.decision === "spam" ? "rejected" : "pending",
       // If a previous tick left this ticket as an orphan (pending row,
       // null draft), overwrite it with the fresh attempt — the orphan

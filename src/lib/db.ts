@@ -664,6 +664,13 @@ export type AgentRun = {
   draft_sent: string | null;
   reasoning: string | null;
   matched_skill_slugs: string[];
+  /** Multi-tool action plan the LLM proposed alongside the draft. Phase 1+2:
+   * displayed in the reviewer UI, NOT executed. See src/lib/agent/tool-catalog.ts
+   * for the shape. Default empty array. */
+  proposed_actions: unknown[];
+  /** IDs of proposed actions the reviewer has actually approved + executed.
+   * Used for audit + to prevent double-execution on page reload. */
+  applied_actions: string[];
   status: "pending" | "sent" | "rejected" | "failed";
   rejection_reason: string | null;
   diff_distance: number | null;
@@ -688,6 +695,8 @@ export async function createAgentRun(input: {
   draftOriginal: string | null;
   reasoning: string | null;
   matchedSkillSlugs: string[];
+  /** Action plan the LLM proposed. Persisted as JSONB. Optional — defaults to []. */
+  proposedActions?: unknown[];
   status: AgentRun["status"];
   /** When true and a row already exists for (workspace_id, ticket_id), the
    * existing row is OVERWRITTEN with the new draft/reasoning/etc. Used when
@@ -710,6 +719,7 @@ export async function createAgentRun(input: {
     draft_original: input.draftOriginal,
     reasoning: input.reasoning,
     matched_skill_slugs: input.matchedSkillSlugs,
+    proposed_actions: input.proposedActions ?? [],
     status: input.status,
   };
   const builder = input.upsert
