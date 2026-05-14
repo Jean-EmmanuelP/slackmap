@@ -244,17 +244,33 @@ export function SlackContextPanel({
         })}
       </ul>
       <div className="flex items-center gap-2 flex-wrap pt-2">
-        <button
-          type="button"
-          onClick={save}
-          disabled={!dirty || saving}
-          className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800 disabled:opacity-40 disabled:cursor-not-allowed"
-        >
-          {saving ? (fr ? "Sauvegarde…" : "Saving…") : fr ? "Sauvegarder" : "Save"}
-        </button>
+        {dirty ? (
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800 disabled:opacity-50"
+          >
+            {saving ? (fr ? "Sauvegarde…" : "Saving…") : fr ? "Sauvegarder" : "Save"}
+          </button>
+        ) : (
+          <span className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-emerald-500 bg-emerald-50 text-emerald-800 inline-flex items-center gap-1.5">
+            <span className="size-1.5 rounded-full bg-emerald-500" />
+            {fr
+              ? `Sauvegardé · ${selectedCount} channel${selectedCount > 1 ? "s" : ""} actif${selectedCount > 1 ? "s" : ""}`
+              : `Saved · ${selectedCount} channel${selectedCount === 1 ? "" : "s"} active`}
+          </span>
+        )}
         {error && (
           <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-red-700">
             {error}
+          </span>
+        )}
+        {!dirty && selectedCount > 0 && (
+          <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+            {fr
+              ? "Modifie les cases puis Sauvegarde pour mettre à jour"
+              : "Toggle checkboxes then Save to update"}
           </span>
         )}
       </div>
