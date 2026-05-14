@@ -120,6 +120,24 @@ const VaultIcon = () => (
   </svg>
 );
 
+const AuditIcon = () => (
+  <svg
+    xmlns="http://www.w3.org/2000/svg"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className={ICON}
+  >
+    <circle cx="11" cy="11" r="7" />
+    <path d="m21 21-4.3-4.3" />
+    <path d="M8 11h6" />
+    <path d="M11 8v6" />
+  </svg>
+);
+
 import { LanguageToggle } from "@/components/LanguageToggle";
 import { t } from "@/lib/i18n-ui";
 
@@ -154,6 +172,7 @@ export function WorkspaceShell({
     { href: `/skills?ws=${workspaceId}`, key: "/skills", label: t("nav.skills", lang), icon: <SkillsIcon /> },
     { href: `/glossary?ws=${workspaceId}`, key: "/glossary", label: t("nav.glossary", lang), icon: <GlossaryIcon /> },
     { href: `/vaults?ws=${workspaceId}`, key: "/vault", label: t("nav.vault", lang), icon: <VaultIcon /> },
+    { href: `/audit?ws=${workspaceId}`, key: "/audit", label: t("nav.audit", lang), icon: <AuditIcon /> },
   ];
 
   // Tools group — only shows connected ones. Each tool item lands on its
