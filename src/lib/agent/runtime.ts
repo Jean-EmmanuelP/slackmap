@@ -293,7 +293,12 @@ export async function draftReply(input: AgentRuntimeInput): Promise<AgentDraftRe
   const text = await llmCall({
     system,
     userMessage,
-    maxTokens: 1500,
+    // Bumped from 1500 → 3500. The JSON now carries draft + reasoning +
+    // matched_skill_slugs + urgency + category + proposed_actions[] (5-10
+    // actions × ~100 tokens each). At 1500 the response truncated mid-JSON,
+    // parseJsonBlock failed, and every draft fell back to "LLM output
+    // couldn't be parsed — needs_human" with no actions.
+    maxTokens: 3500,
     model: "extract",
     apiKey: input.apiKey,
   });
