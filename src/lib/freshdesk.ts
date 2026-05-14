@@ -226,6 +226,14 @@ export class FreshdeskClient {
     }
   }
 
+  /** Fetch a single ticket with its requester data. Used by the re-draft
+   * endpoint when we want fresh state on an existing run. */
+  async getTicket(ticketId: number): Promise<FreshdeskTicket> {
+    return this.get<FreshdeskTicket>(
+      `/api/v2/tickets/${ticketId}?include=requester`,
+    );
+  }
+
   ticketUrl(ticketId: number): string {
     return `https://${this.domain}/a/tickets/${ticketId}`;
   }

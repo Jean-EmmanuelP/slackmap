@@ -4,6 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import type { AgentRun } from "@/lib/db";
 
+type ProposedAction = {
+  id: string;
+  tool: string;
+  args: Record<string, unknown>;
+  reason: string;
+  stage: "communication" | "remediation" | "housekeeping" | "memory" | "escalation";
+  irreversible: boolean;
+  approval: "low" | "medium" | "high";
+};
+
 export function AgentReviewer({
   workspaceId,
   run,
@@ -13,7 +23,7 @@ export function AgentReviewer({
   lang?: string;
 }) {
   const [draft, setDraft] = useState(run.draft_original ?? "");
-  const [busy, setBusy] = useState<null | "send" | "reject">(null);
+  const [busy, setBusy] = useState<null | "send" | "reject" | "redraft">(null);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState("");
@@ -21,6 +31,27 @@ export function AgentReviewer({
 
   const isPending = run.status === "pending";
   const wordCount = draft.trim().split(/\s+/).filter(Boolean).length;
+
+  const proposedActions = Array.isArray(run.proposed_actions)
+    ? (run.proposed_actions as unknown as ProposedAction[])
+    : [];
+
+  async function redraft() {
+    setBusy("redraft");
+    setError(null);
+    try {
+      const res = await fetch(`/api/workspace/${workspaceId}/agent/runs/${run.id}/redraft`, {
+        method: "POST",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.detail ?? body.error ?? `${res.status}`);
+      window.location.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Re-draft failed");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function send() {
     if (!draft.trim()) {
@@ -236,8 +267,140 @@ export function AgentReviewer({
               )}
             </div>
           )}
+
+          {/* === PROPOSED ACTION PLAN ===========================
+            * What the agent thinks SHOULD happen on this ticket — beyond
+            * just sending the reply text. Multi-tool plan across Freshdesk
+            * (status, tags, notes), Stripe (refund, cancel sub), Slack
+            * (notify bug-support — exec locked), and DB (customer memory).
+            *
+            * Phase 1+2: visible only, NOT executed. The text reply still
+            * flows through "Send to customer" above. Phase 3 will add a
+            * second "Execute approved actions" button when ready.
+            * =================================================*/}
+          <section className="mt-8 pt-6 border-t-2 border-zinc-200">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
+                  Proposed action plan
+                </div>
+                <div className="mt-0.5 text-sm font-medium text-zinc-900">
+                  {proposedActions.length === 0 ? (
+                    "No actions proposed for this ticket"
+                  ) : (
+                    <>
+                      {proposedActions.length} action{proposedActions.length > 1 ? "s" : ""}{" "}
+                      <span className="text-xs font-normal text-zinc-500">
+                        · phase 2 · visible only, not executed
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+              {isPending && (
+                <button
+                  type="button"
+                  onClick={redraft}
+                  disabled={busy !== null}
+                  className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-zinc-300 text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
+                  title="Force re-generation of the draft + action plan with the latest prompt + context"
+                >
+                  {busy === "redraft" ? "Re-drafting…" : "Re-draft with new prompt"}
+                </button>
+              )}
+            </div>
+
+            {proposedActions.length > 0 && (
+              <ul className="mt-3 space-y-2">
+                {proposedActions.map((a) => (
+                  <ActionRow key={a.id} action={a} />
+                ))}
+              </ul>
+            )}
+
+            {proposedActions.length === 0 && isPending && (
+              <p className="mt-2 text-xs text-zinc-500 italic max-w-xl leading-relaxed">
+                This run was drafted before the action-plan feature shipped. Hit{" "}
+                <span className="font-[var(--font-mono)]">Re-draft with new prompt</span>{" "}
+                above to regenerate with the multi-tool plan (refund / cancel sub / record
+                customer fact / etc. depending on the ticket).
+              </p>
+            )}
+          </section>
         </section>
       </div>
     </div>
+  );
+}
+
+function ActionRow({ action }: { action: ProposedAction }) {
+  const stageColor =
+    action.stage === "communication"
+      ? "border-emerald-300 bg-emerald-50/30"
+      : action.stage === "remediation"
+        ? "border-orange-300 bg-orange-50/30"
+        : action.stage === "memory"
+          ? "border-indigo-200 bg-indigo-50/20"
+          : action.stage === "escalation"
+            ? "border-red-300 bg-red-50/30"
+            : "border-zinc-200 bg-zinc-50/30";
+
+  const pillarFromTool = action.tool.split(".")[0];
+  const pillarColor =
+    pillarFromTool === "freshdesk"
+      ? "text-emerald-700"
+      : pillarFromTool === "stripe"
+        ? "text-indigo-700"
+        : pillarFromTool === "slack"
+          ? "text-purple-700"
+          : "text-zinc-700";
+
+  const approvalChip =
+    action.approval === "high"
+      ? "border-red-400 bg-red-50 text-red-800"
+      : action.approval === "medium"
+        ? "border-amber-400 bg-amber-50 text-amber-800"
+        : "border-zinc-300 bg-zinc-50 text-zinc-600";
+
+  return (
+    <li className={`border ${stageColor} px-3 py-2`}>
+      <div className="flex items-baseline justify-between gap-2 flex-wrap">
+        <div className="flex items-baseline gap-2 min-w-0">
+          <span className={`text-sm font-medium font-[var(--font-mono)] ${pillarColor}`}>
+            {action.tool}
+          </span>
+          <span className="text-[9px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+            {action.stage}
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span
+            className={`text-[9px] uppercase tracking-wider font-[var(--font-mono)] px-1.5 py-0.5 border ${approvalChip}`}
+          >
+            {action.approval} approval
+          </span>
+          {action.irreversible && (
+            <span className="text-[9px] uppercase tracking-wider font-[var(--font-mono)] px-1.5 py-0.5 border border-red-500 bg-red-50 text-red-800">
+              IRREVERSIBLE
+            </span>
+          )}
+        </div>
+      </div>
+
+      {action.reason && (
+        <p className="mt-1 text-xs text-zinc-700 leading-snug">{action.reason}</p>
+      )}
+
+      {Object.keys(action.args).length > 0 && (
+        <details className="mt-1">
+          <summary className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500 cursor-pointer">
+            Args
+          </summary>
+          <pre className="mt-1 text-[10px] font-[var(--font-mono)] text-zinc-600 leading-relaxed whitespace-pre-wrap break-all">
+            {JSON.stringify(action.args, null, 2)}
+          </pre>
+        </details>
+      )}
+    </li>
   );
 }
