@@ -107,6 +107,10 @@ export function SlackContextPanel({
       const body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error ?? `${res.status}`);
       setState({ ...(state ?? { suggestions: [], totalChannels: 0 }), selected: body.selected });
+      // After successful save, collapse back to the confirmation card so
+      // the user sees the green "Contexte Slack actif · #channels" line —
+      // otherwise the expanded list stays open and they think nothing happened.
+      setExpanded(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : "failed");
     } finally {
