@@ -123,19 +123,58 @@ export function HomeDashboard({
   const totalEntities = counts.channels + counts.people + counts.glossary;
   const miningPct = counts.channels > 0 ? Math.round((counts.minedChannels / counts.channels) * 100) : 0;
 
+  // Brain pulse stats — make the "Company Brain" value tangible at first glance.
+  // Read defensively: shapes vary across LiveSignals revisions, fall back to 0.
+  const ls = liveSignals as unknown as Record<string, { pendingDrafts?: number } | undefined>;
+  const draftsPending = ls?.freshdesk?.pendingDrafts ?? 0;
+  const skillsCount = (counts as { skills?: number })?.skills ?? 0;
+  const endpointsProposed = (counts as { endpointsProposed?: number })?.endpointsProposed ?? 0;
+
   return (
     <div className="flex-1 px-8 py-8 overflow-auto">
-      <div className="flex items-center gap-3">
-        <h1 className="text-3xl font-medium tracking-tight text-zinc-900">{workspaceName}</h1>
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 border border-zinc-300 text-zinc-600 text-[11px] font-[var(--font-mono)] uppercase tracking-wider">
-          {t("dashboard.orgTag", lang)}
-        </span>
-      </div>
-      <p className="mt-1 text-sm text-zinc-500">
-        {t("dashboard.subtitle", lang)}
-      </p>
+      {/* === COMPANY BRAIN HERO =====================================
+        * The product proposition lives here. Big enough to anchor the
+        * page; explicit enough that a YC visitor reads "Company Brain
+        * for [Company]" in 2 sec and knows what we do.
+        * =========================================================*/}
+      <header className="border-b border-zinc-200 pb-8 mb-8">
+        <div className="text-[10px] uppercase tracking-[0.22em] text-zinc-500 font-[var(--font-mono)]">
+          {t("dashboard.orgTag", lang)} · {workspaceName}
+        </div>
+        <h1 className="mt-3 text-4xl md:text-5xl font-medium tracking-tight text-zinc-900 max-w-3xl leading-[1.05]">
+          {workspaceName}&apos;s brain.
+        </h1>
+        <p className="mt-3 text-base text-zinc-600 leading-relaxed max-w-2xl">
+          {t("dashboard.heroLine", lang)}
+        </p>
 
-      <div className="mt-8 grid grid-cols-12 gap-4">
+        {/* Live pulse: 3 numbers that prove the brain is alive */}
+        <div className="mt-5 flex flex-wrap items-baseline gap-x-6 gap-y-2">
+          <BrainStat value={skillsCount} label={t("dashboard.stat.skills", lang)} />
+          <BrainStat value={draftsPending} label={t("dashboard.stat.drafts", lang)} accent={draftsPending > 0} />
+          <BrainStat value={endpointsProposed} label={t("dashboard.stat.endpoints", lang)} accent={endpointsProposed > 0} />
+        </div>
+
+        {/* Two primary CTAs — the actual product paths */}
+        <div className="mt-6 flex flex-wrap gap-2">
+          {sources.freshdesk && (
+            <a
+              href={`/freshdesk?ws=${workspaceId}`}
+              className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-4 py-2 border border-zinc-900 bg-zinc-900 text-[var(--paper)] hover:bg-zinc-800"
+            >
+              {t("dashboard.openInbox", lang)}
+            </a>
+          )}
+          <a
+            href={`/audit?ws=${workspaceId}`}
+            className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-4 py-2 border border-zinc-900 text-zinc-900 hover:bg-zinc-50"
+          >
+            {t("dashboard.runAudit", lang)}
+          </a>
+        </div>
+      </header>
+
+      <div className="mt-2 grid grid-cols-12 gap-4">
         {companyContext?.resolvedAt && (
           <CompanyContextCard workspaceId={workspaceId} context={companyContext} lang={lang} />
         )}
@@ -359,6 +398,29 @@ function Code({ value }: { value: string }) {
 // "Live signals" — the proof-of-life section. Surfaces the most recent
 // activity per source (Slack event, mined channel, extracted skill, person
 // updated) so the user feels the brain is being kept fresh, not just stored.
+
+function BrainStat({
+  value,
+  label,
+  accent,
+}: {
+  value: number;
+  label: string;
+  accent?: boolean;
+}) {
+  return (
+    <div className="flex items-baseline gap-1.5">
+      <span
+        className={`text-2xl font-medium tabular-nums ${accent ? "text-emerald-700" : "text-zinc-900"}`}
+      >
+        {value}
+      </span>
+      <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+        {label}
+      </span>
+    </div>
+  );
+}
 // Below it, "Recent automations" lists the freshest extracted skills as
 // candidates that can be installed into Claude Code via one curl command.
 function LiveSignalsSection({

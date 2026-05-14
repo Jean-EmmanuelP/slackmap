@@ -16,7 +16,13 @@ type Messages = Record<string, string>;
 const MESSAGES: Record<string, Messages> = {
   en: {
     // Dashboard chrome
-    "dashboard.orgTag": "Organization",
+    "dashboard.orgTag": "Company Brain",
+    "dashboard.heroLine": "We turn your scattered stack — Slack, Freshdesk, Stripe, your DB — into runnable AI agents. Your support team stops doing repetitive lookups.",
+    "dashboard.runAudit": "Run audit →",
+    "dashboard.openInbox": "Open inbox →",
+    "dashboard.stat.skills": "skills extracted",
+    "dashboard.stat.drafts": "drafts pending",
+    "dashboard.stat.endpoints": "endpoints proposed",
     "dashboard.subtitle": "Your company brain — connect your tools to extract knowledge.",
 
     // Company context card
@@ -196,7 +202,13 @@ const MESSAGES: Record<string, Messages> = {
   },
   fr: {
     // Dashboard chrome
-    "dashboard.orgTag": "Organisation",
+    "dashboard.orgTag": "Cerveau d'entreprise",
+    "dashboard.heroLine": "On transforme ton stack éparpillé — Slack, Freshdesk, Stripe, ta DB — en agents IA exécutables. Ton équipe support arrête les lookups répétitifs.",
+    "dashboard.runAudit": "Lancer l'audit →",
+    "dashboard.openInbox": "Ouvrir l'inbox →",
+    "dashboard.stat.skills": "skills extraits",
+    "dashboard.stat.drafts": "brouillons en attente",
+    "dashboard.stat.endpoints": "endpoints proposés",
     "dashboard.subtitle": "Le brain de ta boîte — connecte tes outils pour extraire la connaissance.",
 
     // Company context card
