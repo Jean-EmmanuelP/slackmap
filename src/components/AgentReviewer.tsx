@@ -36,6 +36,62 @@ export function AgentReviewer({
     ? (run.proposed_actions as unknown as ProposedAction[])
     : [];
 
+  const alreadyApplied = new Set(
+    Array.isArray(run.applied_actions) ? (run.applied_actions as string[]) : [],
+  );
+
+  // Auto-pre-check actions that are LOW risk (so Marc just confirms in 1 click).
+  // High-risk irreversible stuff stays unchecked — explicit consent only.
+  const [approved, setApproved] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    for (const a of proposedActions) {
+      if (alreadyApplied.has(a.id)) continue;
+      if (a.approval === "low") s.add(a.id);
+      // freshdesk.reply is medium but expected; keep auto-checked for convenience
+      if (a.tool === "freshdesk.reply") s.add(a.id);
+    }
+    return s;
+  });
+
+  const [executing, setExecuting] = useState(false);
+  const [execResults, setExecResults] = useState<
+    Array<{ actionId: string; tool: string; status: string; message: string }> | null
+  >(null);
+
+  function toggleApprove(id: string) {
+    setApproved((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function executeApproved() {
+    if (approved.size === 0) return;
+    setExecuting(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/workspace/${workspaceId}/agent/runs/${run.id}/execute`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ approvedActionIds: Array.from(approved) }),
+        },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? `${res.status}`);
+      setExecResults(body.results ?? []);
+      // Refresh server state after a brief delay so the user sees results first
+      setTimeout(() => window.location.reload(), 1800);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Execute failed");
+    } finally {
+      setExecuting(false);
+    }
+  }
+
   async function redraft() {
     setBusy("redraft");
     setError(null);
@@ -311,11 +367,72 @@ export function AgentReviewer({
             </div>
 
             {proposedActions.length > 0 && (
-              <ul className="mt-3 space-y-2">
-                {proposedActions.map((a) => (
-                  <ActionRow key={a.id} action={a} />
-                ))}
-              </ul>
+              <>
+                <ul className="mt-3 space-y-2">
+                  {proposedActions.map((a) => (
+                    <ActionRow
+                      key={a.id}
+                      action={a}
+                      checked={approved.has(a.id)}
+                      applied={alreadyApplied.has(a.id)}
+                      onToggle={() => toggleApprove(a.id)}
+                      disabled={executing || !isPending || alreadyApplied.has(a.id)}
+                    />
+                  ))}
+                </ul>
+
+                {isPending && (
+                  <div className="mt-4 flex items-center justify-between gap-3 flex-wrap">
+                    <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+                      {approved.size} of {proposedActions.length} action
+                      {proposedActions.length > 1 ? "s" : ""} approved
+                    </span>
+                    <button
+                      type="button"
+                      onClick={executeApproved}
+                      disabled={executing || approved.size === 0}
+                      className="text-[11px] uppercase tracking-wider font-[var(--font-mono)] px-4 py-2 border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {executing
+                        ? "Executing…"
+                        : `Execute ${approved.size} approved action${approved.size === 1 ? "" : "s"} →`}
+                    </button>
+                  </div>
+                )}
+
+                {execResults && (
+                  <div className="mt-4 border border-zinc-200 bg-zinc-50/50 p-3 text-xs space-y-1.5 font-[var(--font-mono)]">
+                    <div className="uppercase tracking-wider text-zinc-500 text-[10px]">
+                      Execution results
+                    </div>
+                    {execResults.map((r, i) => (
+                      <div key={i} className="flex items-baseline gap-2 flex-wrap">
+                        <span
+                          className={
+                            r.status === "executed"
+                              ? "text-emerald-700"
+                              : r.status === "blocked"
+                                ? "text-amber-700"
+                                : r.status === "skipped"
+                                  ? "text-zinc-500"
+                                  : "text-red-700"
+                          }
+                        >
+                          {r.status === "executed"
+                            ? "✓"
+                            : r.status === "blocked"
+                              ? "⊘"
+                              : r.status === "skipped"
+                                ? "·"
+                                : "✗"}
+                        </span>
+                        <span className="text-zinc-900">{r.tool}</span>
+                        <span className="text-zinc-500 text-[11px]">{r.message}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
 
             {proposedActions.length === 0 && isPending && (
@@ -333,7 +450,19 @@ export function AgentReviewer({
   );
 }
 
-function ActionRow({ action }: { action: ProposedAction }) {
+function ActionRow({
+  action,
+  checked,
+  applied,
+  onToggle,
+  disabled,
+}: {
+  action: ProposedAction;
+  checked: boolean;
+  applied: boolean;
+  onToggle: () => void;
+  disabled: boolean;
+}) {
   const stageColor =
     action.stage === "communication"
       ? "border-emerald-300 bg-emerald-50/30"
@@ -363,11 +492,24 @@ function ActionRow({ action }: { action: ProposedAction }) {
         : "border-zinc-300 bg-zinc-50 text-zinc-600";
 
   return (
-    <li className={`border ${stageColor} px-3 py-2`}>
-      <div className="flex items-baseline justify-between gap-2 flex-wrap">
-        <div className="flex items-baseline gap-2 min-w-0">
+    <li className={`border ${stageColor} px-3 py-2 ${applied ? "opacity-60" : ""}`}>
+      <div className="flex items-start justify-between gap-2 flex-wrap">
+        <div className="flex items-start gap-2 min-w-0">
+          <input
+            type="checkbox"
+            checked={checked}
+            onChange={onToggle}
+            disabled={disabled}
+            className="mt-1 accent-emerald-700"
+            aria-label={`Approve ${action.tool}`}
+          />
           <span className={`text-sm font-medium font-[var(--font-mono)] ${pillarColor}`}>
             {action.tool}
+            {applied && (
+              <span className="ml-2 text-[9px] uppercase tracking-wider text-emerald-700">
+                ✓ executed
+              </span>
+            )}
           </span>
           <span className="text-[9px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
             {action.stage}
