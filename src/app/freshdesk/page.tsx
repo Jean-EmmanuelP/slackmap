@@ -136,7 +136,7 @@ export default async function FreshdeskPage({
         connectedAt={(workspace.freshdesk_connected_at as string | null) ?? null}
         lastAgentTickAt={(workspace.last_agent_tick_at as string | null) ?? null}
         status={(workspace.freshdesk_status as string | null) ?? null}
-        anthropicKeySet={!!workspace.anthropic_key_set_at}
+        anthropicKeySet={!!workspace.anthropic_key_set_at || !!process.env.ANTHROPIC_API_KEY}
         stripeConnected={!!workspace.stripe_key_set_at}
         lang={lang}
         inboxRuns={recentRuns.map((r) => ({

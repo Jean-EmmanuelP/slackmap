@@ -251,7 +251,7 @@ export default async function HomePage({
           slack: true,
           freshdesk: !!workspace.freshdesk_domain,
         }}
-        anthropicKeySet={!!workspace.anthropic_key_set_at}
+        anthropicKeySet={!!workspace.anthropic_key_set_at || !!process.env.ANTHROPIC_API_KEY}
         counts={counts}
         currentUserId={currentUserId}
         isAdmin={isAdmin}
