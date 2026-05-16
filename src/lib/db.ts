@@ -244,6 +244,59 @@ export async function getWorkspaceFreshdesk(
   };
 }
 
+// Active customer endpoints — the dynamic tools the LLM can propose
+// in action plans, callable by the executor. Only status='active' rows
+// are returned (proposed/implemented are still under review).
+export type ActiveCustomerEndpoint = {
+  id: string;
+  name: string;
+  description: string;
+  why: string;
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  url_template: string;
+  request_schema: Record<string, unknown>;
+  response_schema: Record<string, unknown>;
+  auth_hint: string | null;
+  estimated_ticket_coverage_pct: number;
+  live_base_url: string;
+  encrypted_auth_token: string | null;
+};
+
+export async function listActiveCustomerEndpoints(
+  workspaceId: string,
+  opts: { limit?: number } = {},
+): Promise<ActiveCustomerEndpoint[]> {
+  const { data, error } = await db()
+    .from("customer_endpoints")
+    .select(
+      "id, name, description, why, method, url_template, request_schema, response_schema, auth_hint, estimated_ticket_coverage_pct, live_base_url, encrypted_auth_token",
+    )
+    .eq("workspace_id", workspaceId)
+    .eq("status", "active")
+    .not("live_base_url", "is", null)
+    .order("estimated_ticket_coverage_pct", { ascending: false })
+    .limit(opts.limit ?? 20);
+  if (error) throw error;
+  return (data ?? []) as ActiveCustomerEndpoint[];
+}
+
+export async function getActiveCustomerEndpointByName(
+  workspaceId: string,
+  name: string,
+): Promise<ActiveCustomerEndpoint | null> {
+  const { data, error } = await db()
+    .from("customer_endpoints")
+    .select(
+      "id, name, description, why, method, url_template, request_schema, response_schema, auth_hint, estimated_ticket_coverage_pct, live_base_url, encrypted_auth_token",
+    )
+    .eq("workspace_id", workspaceId)
+    .eq("name", name)
+    .eq("status", "active")
+    .maybeSingle();
+  if (error) throw error;
+  return (data as ActiveCustomerEndpoint) ?? null;
+}
+
 export async function getSlackContextChannelIds(workspaceId: string): Promise<string[]> {
   const { data, error } = await db()
     .from("workspaces")

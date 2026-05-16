@@ -256,6 +256,47 @@ export const TOOL_CATALOG: ToolSpec[] = [
 ];
 
 /**
+ * Render the dynamic customer_api.* tools section. These are workspace-
+ * specific endpoints the customer has activated via the audit registry.
+ * Each becomes a callable tool the LLM can propose in action plans.
+ *
+ * Naming convention: customer_api.{endpoint_name} where endpoint_name
+ * is the snake_case name from the audit (e.g. customer_api.get_customer_subscription).
+ *
+ * Capped at 10 endpoints in the prompt to bound token cost; the registry
+ * sorts by estimated_ticket_coverage_pct desc so the top-impact endpoints
+ * always make the cut.
+ */
+export function renderDynamicEndpointsForPrompt(
+  endpoints: Array<{
+    name: string;
+    description: string;
+    why: string;
+    method: string;
+    url_template: string;
+    request_schema: Record<string, unknown>;
+    estimated_ticket_coverage_pct: number;
+  }>,
+): string {
+  if (endpoints.length === 0) return "";
+  const lines: string[] = [
+    "",
+    "### Pillar: customer_api (THIS WORKSPACE's own endpoints — activated by the operator from /audit)",
+    "When the ticket needs data ONLY this customer can answer (subscription state, device info, account flags), propose these instead of escalating.",
+    "",
+  ];
+  for (const e of endpoints.slice(0, 10)) {
+    const argLines = Object.entries(e.request_schema)
+      .map(([k, v]) => `${k}: ${String(v)}`)
+      .join("; ");
+    lines.push(
+      `- customer_api.${e.name} (${e.method} ${e.url_template}, ~${e.estimated_ticket_coverage_pct}% ticket coverage)\n    ${e.description}\n    when to use: ${e.why}\n    args: { ${argLines} }`,
+    );
+  }
+  return lines.join("\n");
+}
+
+/**
  * Render the catalog as a compact block for the LLM system prompt. Lists
  * each tool with its description + arg schema + default approval level.
  * Kept terse to fit in the prompt without ballooning tokens.

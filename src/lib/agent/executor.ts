@@ -29,6 +29,7 @@ import {
   getAgentRun,
   getWorkspace,
   getWorkspaceFreshdesk,
+  getActiveCustomerEndpointByName,
   type AgentRun,
 } from "@/lib/db";
 import { FreshdeskClient } from "@/lib/freshdesk";
@@ -133,8 +134,12 @@ export async function executeApprovedActions(
       continue;
     }
 
-    // Allowlist
-    if (!EXEC_ALLOWLIST.has(action.tool)) {
+    // Allowlist — built-in tools must be in EXEC_ALLOWLIST.
+    // Dynamic customer_api.* tools are allowed when the named endpoint
+    // exists and is marked active in the workspace registry (the activation
+    // is an explicit operator gesture, so it's its own form of consent).
+    const isDynamicCustomerApi = action.tool.startsWith("customer_api.");
+    if (!isDynamicCustomerApi && !EXEC_ALLOWLIST.has(action.tool)) {
       results.push({
         actionId: action.id,
         tool: action.tool,
@@ -185,6 +190,11 @@ export async function executeApprovedActions(
 // ============================================================
 
 async function runOne(run: AgentRun, action: AgentAction): Promise<unknown> {
+  // Dynamic customer endpoint? Handled separately — it's not a switch case
+  // because the tool name is workspace-specific (customer_api.{name}).
+  if (action.tool.startsWith("customer_api.")) {
+    return runCustomerApi(run, action);
+  }
   switch (action.tool) {
     case "freshdesk.reply":
       return runFreshdeskReply(run, action);
@@ -207,6 +217,100 @@ async function runOne(run: AgentRun, action: AgentAction): Promise<unknown> {
     default:
       throw new Error(`no handler for ${action.tool}`);
   }
+}
+
+// ---------- Dynamic customer endpoint handler ----------
+
+/**
+ * Call a workspace-registered customer endpoint.
+ *
+ * Steps:
+ *   1. Look up the endpoint by name (must be active for this workspace).
+ *   2. Substitute URL template vars from action.args (e.g. {email} → args.email).
+ *   3. For GET: remaining args become query params. For POST/PUT/PATCH: args
+ *      become the JSON body.
+ *   4. Decrypt the stored Bearer token (if any) and add Authorization header.
+ *   5. 10s timeout. Return parsed JSON response (or { status, text } on non-JSON).
+ *
+ * The result is stored in the agent_action_log for audit; the agent's next
+ * draft can reference it via the customer_facts memory if needed.
+ */
+async function runCustomerApi(run: AgentRun, action: AgentAction): Promise<unknown> {
+  const endpointName = action.tool.slice("customer_api.".length);
+  if (!endpointName) throw new Error("malformed customer_api tool name");
+
+  const endpoint = await getActiveCustomerEndpointByName(run.workspace_id, endpointName);
+  if (!endpoint) {
+    throw new Error(
+      `endpoint ${endpointName} not found or not active in workspace registry`,
+    );
+  }
+  if (!endpoint.live_base_url) {
+    throw new Error(`endpoint ${endpointName} has no live_base_url configured`);
+  }
+
+  // Substitute URL template vars: /api/v1/customers/{email} → /api/v1/customers/sarah@...
+  let path = endpoint.url_template;
+  const consumedArgs = new Set<string>();
+  for (const [key, value] of Object.entries(action.args)) {
+    const token = `{${key}}`;
+    if (path.includes(token)) {
+      path = path.replace(token, encodeURIComponent(String(value)));
+      consumedArgs.add(key);
+    }
+  }
+
+  // Remaining args go to query string (GET) or JSON body (mutations)
+  const remainingArgs: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(action.args)) {
+    if (!consumedArgs.has(key)) remainingArgs[key] = value;
+  }
+
+  // Build the full URL — handle path that may or may not include base
+  const fullUrl = path.startsWith("http")
+    ? path
+    : endpoint.live_base_url.replace(/\/$/, "") + (path.startsWith("/") ? path : `/${path}`);
+
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+  };
+  if (endpoint.encrypted_auth_token) {
+    headers.Authorization = `Bearer ${decrypt(endpoint.encrypted_auth_token)}`;
+  }
+
+  let url = fullUrl;
+  const init: RequestInit = {
+    method: endpoint.method,
+    headers,
+    signal: AbortSignal.timeout(10_000),
+  };
+
+  if (endpoint.method === "GET" || endpoint.method === "DELETE") {
+    const params = new URLSearchParams();
+    for (const [k, v] of Object.entries(remainingArgs)) {
+      if (v != null) params.set(k, String(v));
+    }
+    const qs = params.toString();
+    if (qs) url = url.includes("?") ? `${url}&${qs}` : `${url}?${qs}`;
+  } else if (Object.keys(remainingArgs).length > 0) {
+    headers["Content-Type"] = "application/json";
+    init.body = JSON.stringify(remainingArgs);
+  }
+
+  const res = await fetch(url, init);
+  const text = await res.text().catch(() => "");
+  let parsed: unknown = text;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    // not JSON — keep raw text
+  }
+  if (!res.ok) {
+    throw new Error(
+      `customer_api ${endpointName} → ${res.status}: ${text.slice(0, 200)}`,
+    );
+  }
+  return { status: res.status, body: parsed };
 }
 
 async function fdClient(workspaceId: string): Promise<FreshdeskClient> {

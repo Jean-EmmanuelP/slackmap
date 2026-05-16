@@ -18,10 +18,12 @@ import type { FreshdeskTicket, FreshdeskConversation } from "@/lib/freshdesk";
 import { buildCompanyContextBlock } from "@/lib/extract/company-context-block";
 import {
   renderCatalogForPrompt,
+  renderDynamicEndpointsForPrompt,
   type AgentAction,
   type ActionStage,
   type ApprovalLevel,
 } from "./tool-catalog";
+import { listActiveCustomerEndpoints } from "@/lib/db";
 
 export type AgentToolCall = {
   tool: string;
@@ -280,9 +282,27 @@ export async function draftReply(input: AgentRuntimeInput): Promise<AgentDraftRe
   const sc = detectShortCircuit(input.ticket);
   if (sc) return sc;
 
+  // Pull active customer endpoints registered for this workspace — they
+  // become dynamic tools the LLM can propose. Top 10 by coverage to bound
+  // prompt size.
+  const activeEndpoints = await listActiveCustomerEndpoints(input.workspace.id, {
+    limit: 10,
+  }).catch(() => []);
+
   const system =
     buildCompanyContextBlock(input.workspace) +
-    DRAFT_SYSTEM;
+    DRAFT_SYSTEM +
+    renderDynamicEndpointsForPrompt(
+      activeEndpoints.map((e) => ({
+        name: e.name,
+        description: e.description,
+        why: e.why,
+        method: e.method,
+        url_template: e.url_template,
+        request_schema: e.request_schema,
+        estimated_ticket_coverage_pct: e.estimated_ticket_coverage_pct,
+      })),
+    );
 
   const userMessage =
     `${buildTicketBlock(input.ticket, input.conversation)}\n\n` +
