@@ -172,21 +172,23 @@ export function WorkspaceShell({
     { href: `/skills?ws=${workspaceId}`, key: "/skills", label: t("nav.skills", lang), icon: <SkillsIcon /> },
     { href: `/glossary?ws=${workspaceId}`, key: "/glossary", label: t("nav.glossary", lang), icon: <GlossaryIcon /> },
     { href: `/vaults?ws=${workspaceId}`, key: "/vault", label: t("nav.vault", lang), icon: <VaultIcon /> },
-    { href: `/audit?ws=${workspaceId}`, key: "/audit", label: t("nav.audit", lang), icon: <AuditIcon /> },
   ];
 
-  // Tools group — only shows connected ones. Each tool item lands on its
-  // dedicated drill-down page (which now hosts its own agent drafts section).
-  const tools: NavItem[] = [];
+  // Support group — the operational JTBD. Lives separately from Knowledge
+  // (descriptive) and is built around the Freshdesk integration. Sub-tabs:
+  //   Inbox  → /freshdesk (drafts queue + tickets)
+  //   Audit  → /audit     (endpoints to build to automate this queue)
+  // Future: Métriques, Skills feedback, Workflows.
+  //
+  // Only shown when Freshdesk is connected — without it, none of these
+  // pages have data to render.
+  const support: NavItem[] = [];
   if (connectedTools?.freshdesk) {
-    tools.push({
-      href: `/freshdesk?ws=${workspaceId}`,
-      key: "/freshdesk",
-      label: t("nav.freshdesk", lang),
-      icon: <AgentIcon />,
-    });
+    support.push(
+      { href: `/freshdesk?ws=${workspaceId}`, key: "/freshdesk", label: t("nav.support.inbox", lang), icon: <AgentIcon /> },
+      { href: `/audit?ws=${workspaceId}`, key: "/audit", label: t("nav.support.audit", lang), icon: <AuditIcon /> },
+    );
   }
-  // Future: Stripe page, Gmail page, etc.
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
@@ -252,23 +254,24 @@ export function WorkspaceShell({
           </nav>
         </div>
 
-        {/* Connected tools group — appears only when at least one tool is wired up */}
-        {tools.length > 0 && (
+        {/* Support group — Inbox + Audit. Only appears when Freshdesk is
+         * connected (none of these pages render useful data otherwise). */}
+        {support.length > 0 && (
           <div className="px-2 mt-5">
             {!collapsed && (
               <div className="px-2 mb-1 text-[10px] uppercase tracking-[0.18em] text-zinc-500 font-[var(--font-mono)]">
-                {t("nav.tools", lang)}
+                {t("nav.support", lang)}
               </div>
             )}
             <nav className="flex flex-col gap-px">
-              {tools.map((tool) => (
+              {support.map((item) => (
                 <NavLink
-                  key={tool.key}
-                  href={tool.href}
-                  label={tool.label}
-                  icon={tool.icon}
+                  key={item.key}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
                   collapsed={collapsed}
-                  active={pathname.startsWith(tool.key)}
+                  active={pathname.startsWith(item.key)}
                 />
               ))}
             </nav>
