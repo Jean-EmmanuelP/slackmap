@@ -31,9 +31,12 @@ type AuditReport = {
 type EndpointRow = {
   id: string;
   name: string;
+  method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
+  url_template: string;
   status: "proposed" | "implemented" | "active" | "deprecated";
   estimated_ticket_coverage: number;
   estimated_ticket_coverage_pct: number;
+  live_base_url?: string | null;
 };
 
 export function AuditPanel({
@@ -156,35 +159,30 @@ export function AuditPanel({
         )}
       </section>
 
-      {/* Existing endpoint registry — shown above the report if there's a backlog */}
+      {/* Existing endpoint registry with status transitions — the loop
+       * that ties the audit page to actual product use. proposed →
+       * implemented (dev built it) → active (live URL set, agent can
+       * call it) → deprecated (removed). */}
       {existingEndpoints.length > 0 && (
-        <section className="mb-8 max-w-3xl">
-          <h2 className="text-[10px] uppercase tracking-[0.22em] text-zinc-500 font-[var(--font-mono)] mb-3">
-            {fr ? "Registry actuel" : "Endpoint registry"} · {existingEndpoints.length}
-          </h2>
+        <section className="mb-8">
+          <div className="max-w-3xl mb-3">
+            <h2 className="text-[10px] uppercase tracking-[0.22em] text-zinc-500 font-[var(--font-mono)]">
+              {fr ? "Registry des endpoints" : "Endpoint registry"} · {existingEndpoints.length}
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500">
+              {fr
+                ? "Chaque endpoint progresse : proposé → implémenté (build) → actif (l'agent l'appelle). Coche au fur et à mesure que ton équipe dev les livre."
+                : "Each endpoint moves: proposed → implemented (build done) → active (agent can call it). Mark as your dev team ships."}
+            </p>
+          </div>
           <div className="border border-zinc-200 bg-white/40 divide-y divide-zinc-100">
-            {existingEndpoints.slice(0, 12).map((e) => (
-              <div key={e.id} className="px-4 py-2 flex items-center justify-between gap-3">
-                <span className="text-sm font-[var(--font-mono)] text-zinc-900 truncate">{e.name}</span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-[9px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500 tabular-nums">
-                    {e.estimated_ticket_coverage_pct}%
-                  </span>
-                  <span
-                    className={`text-[9px] uppercase tracking-wider font-[var(--font-mono)] px-1.5 py-0.5 border ${
-                      e.status === "active"
-                        ? "border-emerald-500 bg-emerald-50 text-emerald-800"
-                        : e.status === "implemented"
-                          ? "border-indigo-400 bg-indigo-50 text-indigo-800"
-                          : e.status === "deprecated"
-                            ? "border-zinc-300 text-zinc-400"
-                            : "border-zinc-300 text-zinc-600"
-                    }`}
-                  >
-                    {e.status}
-                  </span>
-                </div>
-              </div>
+            {existingEndpoints.map((e) => (
+              <EndpointRegistryRow
+                key={e.id}
+                endpoint={e}
+                workspaceId={workspaceId}
+                fr={fr}
+              />
             ))}
           </div>
         </section>
@@ -199,6 +197,228 @@ export function AuditPanel({
         />
       )}
     </div>
+  );
+}
+
+function EndpointRegistryRow({
+  endpoint,
+  workspaceId,
+  fr,
+}: {
+  endpoint: EndpointRow;
+  workspaceId: string;
+  fr: boolean;
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activating, setActivating] = useState(false);
+  const [activateUrl, setActivateUrl] = useState("");
+  const [activateToken, setActivateToken] = useState("");
+
+  async function transition(
+    target: "proposed" | "implemented" | "active" | "deprecated",
+    extra?: { live_base_url?: string; auth_token?: string },
+  ) {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/workspace/${workspaceId}/endpoints/${endpoint.id}/status`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: target, ...extra }),
+        },
+      );
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? `${res.status}`);
+      window.location.reload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function startActivate() {
+    setActivating(true);
+    // Pre-fill base URL guess: strip /api/* path from url_template
+    const match = endpoint.url_template.match(/^https?:\/\/[^/]+/);
+    setActivateUrl(match ? match[0] : "https://");
+  }
+
+  function confirmActivate() {
+    if (!activateUrl || !activateUrl.startsWith("http")) {
+      setError("base URL required (https://...)");
+      return;
+    }
+    void transition("active", {
+      live_base_url: activateUrl,
+      auth_token: activateToken || undefined,
+    });
+  }
+
+  return (
+    <div className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-baseline gap-2 flex-wrap">
+            <span
+              className={`text-[9px] uppercase tracking-wider font-[var(--font-mono)] px-1.5 py-0.5 border ${
+                endpoint.method === "GET"
+                  ? "border-emerald-400 bg-emerald-50 text-emerald-800"
+                  : endpoint.method === "POST"
+                    ? "border-indigo-400 bg-indigo-50 text-indigo-800"
+                    : endpoint.method === "DELETE"
+                      ? "border-red-400 bg-red-50 text-red-800"
+                      : "border-amber-400 bg-amber-50 text-amber-800"
+              }`}
+            >
+              {endpoint.method}
+            </span>
+            <span className="text-sm font-[var(--font-mono)] text-zinc-900 truncate">
+              {endpoint.url_template}
+            </span>
+          </div>
+          <div className="mt-1 text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+            {endpoint.name} · {endpoint.estimated_ticket_coverage_pct}% coverage ·{" "}
+            {endpoint.estimated_ticket_coverage} tix
+            {endpoint.live_base_url && (
+              <>
+                {" "}
+                ·{" "}
+                <span className="text-emerald-700">
+                  live at {endpoint.live_base_url}
+                </span>
+              </>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <StatusBadge status={endpoint.status} />
+        </div>
+      </div>
+
+      {/* Transition controls */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {endpoint.status === "proposed" && (
+          <button
+            type="button"
+            onClick={() => transition("implemented")}
+            disabled={busy}
+            className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-2.5 py-1 border border-indigo-700 text-indigo-700 hover:bg-indigo-50 disabled:opacity-50"
+          >
+            {fr ? "Marquer implémenté" : "Mark implemented"}
+          </button>
+        )}
+        {endpoint.status === "implemented" && !activating && (
+          <button
+            type="button"
+            onClick={startActivate}
+            disabled={busy}
+            className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-2.5 py-1 border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
+          >
+            {fr ? "Activer →" : "Activate →"}
+          </button>
+        )}
+        {(endpoint.status === "active" || endpoint.status === "implemented") && (
+          <button
+            type="button"
+            onClick={() => transition("deprecated")}
+            disabled={busy}
+            className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-2.5 py-1 border border-zinc-300 text-zinc-500 hover:text-red-700"
+          >
+            {fr ? "Déprécier" : "Deprecate"}
+          </button>
+        )}
+        {endpoint.status === "deprecated" && (
+          <button
+            type="button"
+            onClick={() => transition("proposed")}
+            disabled={busy}
+            className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-2.5 py-1 border border-zinc-300 text-zinc-700 hover:bg-zinc-50"
+          >
+            {fr ? "Restaurer" : "Restore"}
+          </button>
+        )}
+        {error && (
+          <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-red-700">
+            {error}
+          </span>
+        )}
+      </div>
+
+      {/* Activation inputs */}
+      {activating && (
+        <div className="mt-3 p-3 border border-emerald-200 bg-emerald-50/30 space-y-2">
+          <div className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-emerald-700">
+            {fr
+              ? "Activer · l'agent appellera cet endpoint dans ses action plans"
+              : "Activate · the agent will call this endpoint in its action plans"}
+          </div>
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+              {fr ? "URL de base (https://...)" : "Base URL (https://...)"}
+            </span>
+            <input
+              type="text"
+              value={activateUrl}
+              onChange={(e) => setActivateUrl(e.target.value)}
+              placeholder="https://api.bestrong-app.com"
+              className="mt-1 w-full px-2 py-1 border border-zinc-300 bg-white text-xs font-[var(--font-mono)] focus:outline-none focus:border-zinc-900"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] text-zinc-500">
+              {fr ? "Bearer token (optionnel)" : "Bearer token (optional)"}
+            </span>
+            <input
+              type="password"
+              value={activateToken}
+              onChange={(e) => setActivateToken(e.target.value)}
+              placeholder="sk_..."
+              className="mt-1 w-full px-2 py-1 border border-zinc-300 bg-white text-xs font-[var(--font-mono)] focus:outline-none focus:border-zinc-900"
+            />
+          </label>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={confirmActivate}
+              disabled={busy}
+              className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-3 py-1.5 border border-emerald-700 bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50"
+            >
+              {busy ? (fr ? "Activation…" : "Activating…") : fr ? "Confirmer activation" : "Confirm activate"}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActivating(false);
+                setError(null);
+              }}
+              className="text-[10px] uppercase tracking-wider font-[var(--font-mono)] px-2 py-1 text-zinc-500 hover:text-zinc-900"
+            >
+              {fr ? "Annuler" : "Cancel"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: EndpointRow["status"] }) {
+  const styles = {
+    proposed: "border-zinc-300 text-zinc-600",
+    implemented: "border-indigo-400 bg-indigo-50 text-indigo-800",
+    active: "border-emerald-500 bg-emerald-50 text-emerald-800",
+    deprecated: "border-zinc-300 text-zinc-400",
+  }[status];
+  return (
+    <span
+      className={`text-[9px] uppercase tracking-wider font-[var(--font-mono)] px-1.5 py-0.5 border ${styles}`}
+    >
+      {status}
+    </span>
   );
 }
 
