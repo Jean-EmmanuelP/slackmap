@@ -4,7 +4,6 @@ import { LiveStatus } from "@/components/LiveStatus";
 import { WorkspaceShell } from "@/components/WorkspaceShell";
 import { AtlasView } from "@/components/AtlasView";
 import { MiningProgress } from "@/components/MiningProgress";
-import { PageHeader } from "@/components/PageHeader";
 import { getSessionUser } from "@/lib/supabase-server";
 import { userCanRead } from "@/lib/access";
 
@@ -31,7 +30,27 @@ export default async function AtlasPage({
 
   if (!workspace) redirect("/");
 
-  const channels = await listChannels(workspace.id as string);
+  // Fetch channels + per-channel skill counts in parallel. The skill count
+  // turns Atlas from "table of channels" into "where the value lives" — it's
+  // the metric that ties each channel to actual product output.
+  const [channels, skillsResult] = await Promise.all([
+    listChannels(workspace.id as string),
+    db()
+      .from("skills")
+      .select("first_seen_channel_id")
+      .eq("workspace_id", workspace.id as string),
+  ]);
+
+  // Build slack_channel_id → skill count map
+  // skills.first_seen_channel_id is the channels.id (uuid), not slack_channel_id,
+  // so we need to translate via the channels list.
+  const channelIdToSlackId = new Map(channels.map((c) => [c.id, c.slack_channel_id]));
+  const skillCountsByChannel: Record<string, number> = {};
+  for (const s of skillsResult.data ?? []) {
+    const slackId = channelIdToSlackId.get(s.first_seen_channel_id as string);
+    if (!slackId) continue;
+    skillCountsByChannel[slackId] = (skillCountsByChannel[slackId] ?? 0) + 1;
+  }
 
   return (
     <WorkspaceShell
@@ -43,28 +62,26 @@ export default async function AtlasPage({
         stripe: !!workspace.stripe_key_set_at,
       }}
     >
-      <PageHeader
-        title="Atlas"
-        subtitle="What each Slack channel is actually used for, inferred from observed activity. Click a channel to mine its purpose, contributors, and message volume."
-        count={{ value: channels.filter((c) => !c.archived).length, label: "channels" }}
-      />
-      <LiveStatus
-        status={workspace.backfill_status as "pending" | "running" | "ready" | "failed"}
-        progress={workspace.backfill_progress as number}
-        total={workspace.backfill_total as number}
-        lastEventAt={workspace.last_event_received_at as string | null}
-      />
-      <MiningProgress workspaceId={workspace.id as string} />
       {channels.length === 0 ? (
-        <div className="flex-1 flex items-center justify-center text-zinc-500">
-          No channels yet. Connect Slack to populate.
+        <div className="flex-1 flex flex-col items-center justify-center text-zinc-500 px-8">
+          <p className="text-sm">No channels yet. Connect Slack to populate the knowledge map.</p>
         </div>
       ) : (
-        <AtlasView
-          channels={channels}
-          teamDomain={(workspace.slack_team_domain as string | null) ?? null}
-          workspaceId={workspace.id as string}
-        />
+        <>
+          <LiveStatus
+            status={workspace.backfill_status as "pending" | "running" | "ready" | "failed"}
+            progress={workspace.backfill_progress as number}
+            total={workspace.backfill_total as number}
+            lastEventAt={workspace.last_event_received_at as string | null}
+          />
+          <MiningProgress workspaceId={workspace.id as string} />
+          <AtlasView
+            channels={channels}
+            teamDomain={(workspace.slack_team_domain as string | null) ?? null}
+            workspaceId={workspace.id as string}
+            skillCountsByChannel={skillCountsByChannel}
+          />
+        </>
       )}
     </WorkspaceShell>
   );
